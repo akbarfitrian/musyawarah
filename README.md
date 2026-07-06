@@ -70,7 +70,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_SPHERE_WALLET_URL=https://sphere.unicity.network
 
 # Required for verification purchases
-VITE_VERIFICATION_TREASURY_WALLET=0x...
+VITE_VERIFICATION_TREASURY_WALLET=@...
 ```
 
 ### 4. Run the development server
@@ -157,4 +157,3 @@ Built with ❤️ for the Unicity & Sphere ecosystem.
 ---
 
 **Ready for deployment on Vercel, Netlify, or Cloudflare Pages.**
-```
