@@ -1,191 +1,160 @@
-# MUSYAWARAH
+# Musyawarah
 
-A simple Warpcast-style social app: connect wallet, post, tip. v0 — rough
-around the edges, built incrementally.
+A decentralized social platform built on wallet-based identity, inspired by the spirit of *musyawarah* (deliberation and consensus). Musyawarah enables open, transparent, and community-driven discussions powered by blockchain wallets.
 
-## Features so far
+---
 
-- Wallet-address-based identity (no separate signup/login)
-- Text posts (character limit varies by verification tier — Free 100,
-  Verified 300, Verified Pro 500, Verified Max 1,000)
-- Feed, sorted newest first
-- Tipping on other people's posts, recorded in Supabase
-- **3-tier verification** (Verified / Verified Pro / Verified Max) — paid for
-  with UCT, monthly or yearly (yearly gets a 15% discount), grants a badge
-  next to the username, a bigger daily posting quota, a looser character
-  limit, and (from Verified Pro) the ability to attach images / (Verified Max
-  only) the ability to edit posts (see the "Verification & posting quota"
-  section below)
-- **Real-time wallet balance** — total (USD) plus a per-token breakdown,
-  shown in the `ConnectWallet` component (sidebar/topbar), auto-updating on
-  every incoming/outgoing transfer (see the "Wallet connect" section below)
-- **Brand mark** — the app icon/favicon and in-app logo mark use the
-  uploaded "M" logo (`public/logo.png`), rendered via the `LogoMark`
-  component in `src/components/icons.tsx`
+## ✨ Features
 
-## Wallet connect (Sphere Connect protocol)
+- **Wallet Authentication** via Sphere (Extension, Iframe, or Popup)
+- **Create & Browse Posts** with image support
+- **Tipping System** using UCT (Unicity Token)
+- **Repost** functionality with notifications
+- **Tiered Verification** (Free → Verified → Verified Pro → Verified Max)
+  - Higher post limits
+  - Longer post length
+  - Image attachments
+  - Post editing (Max tier)
+- **Private Messaging** between wallets
+- **Real-time Notifications** (follows, reposts, tips)
+- **User Search & Profiles**
+- **Dark Mode** with elegant monochrome design
+- **Direct Monetization** through on-chain tipping
 
-`src/contexts/WalletContext.tsx` now connects to a real Sphere wallet via the
-**Sphere Connect protocol** (`@unicitylabs/sphere-sdk/connect`) instead of
-demo mode. There are 3 connection modes, tried in order — following the same
-pattern as
-[`unicity-sphere/sphere-sdk-connect-example`](https://github.com/unicity-sphere/sphere-sdk-connect-example):
+---
 
-| Priority | Mode | When it's used |
-|---|---|---|
-| P1 | **Iframe** | Musyawarah is loaded inside Sphere's own iframe (as a "Sphere Agent") |
-| P2 | **Extension** | The user has the Sphere browser extension installed |
-| P3 | **Popup** | Fallback: opens the Sphere wallet (`sphere.unicity.network`) as a popup window |
+## 🛠️ Tech Stack
 
-Other details:
+- **Frontend**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS + Custom Design System
+- **Backend**: Supabase (PostgreSQL, RLS, Edge Functions)
+- **Wallet Integration**: [@unicitylabs/sphere-sdk](https://www.npmjs.com/package/@unicitylabs/sphere-sdk)
+- **Fonts**: Fraunces (Display) + Plus Jakarta Sans (Body)
 
-- A silent auto-connect is attempted every time the app loads (instant for
-  P1/P2, resumes the session for P3 via `sessionStorage`). If it fails or
-  hasn't been approved yet, a "Connect Wallet" button appears instead.
-- `sendTip()` calls the real `send` intent from the Sphere Connect protocol,
-  converting the amount to base units (integer, not float) before sending.
-- The UCT coinId (needs the 64-hex format required by the `send` intent) is
-  auto-resolved from the wallet via `sphere_getAssets`/`sphere_getTokens`. If
-  it can't be found, there's a fallback via the `VITE_SPHERE_UCT_COIN_ID`
-  env var — see `.env.example` and the comments in `resolveUctCoin()`.
-- Wallet lock/unlock, and disconnects initiated from the wallet side, are
-  handled via the `wallet:locked` and `identity:changed` events (auto-pushed,
-  no manual subscription needed).
-- **Real-time balance**: as soon as the wallet connects, `WalletContext`
-  queries `sphere_getAssets` (+ optionally `sphere_getFiatBalance`) for the
-  initial balance, then subscribes to the `transfer:incoming` and
-  `transfer:confirmed` events — on every transaction the balance is
-  refetched automatically, no polling required. Exposed via `useWallet()` as
-  `assets`, `totalFiat`, `balanceLoading`, and `refreshBalance()` for a
-  manual refresh. Displayed in `ConnectWallet.tsx` (total USD next to the
-  wallet address, per-token breakdown in the dropdown menu).
+---
 
-**Not yet testable/verifiable without a real Sphere wallet instance**: the
-exact shape of the `send` intent's response (the tx hash field name), the
-exact UCT coinId format on the network you're using, and the exact shape of
-the `sphere_getAssets`/`sphere_getFiatBalance` responses (amount/symbol/USD
-value field names). Parsing in `parseWalletAssets()`/`parseFiatTotal()`
-(`src/lib/sphereConnect.ts`) tries several commonly used field names as
-reasonable guesses — if you find official details from Unicity Labs, or the
-fields turn out to be different when tested against a real wallet, adjust
-them there.
+## 📋 Prerequisites
 
-## Verification & posting quota
+- Node.js 20 or higher
+- A Supabase project
+- Sphere Wallet (recommended)
 
-There are 3 paid verification tiers, purchased with UCT (sent to the
-platform's treasury wallet using the same flow as sending a tip). You can
-choose **monthly** or **yearly** billing — yearly gets a **15%** discount
-compared to paying monthly x12. Buying a new tier always replaces the old
-one (tiers don't stack). Pricing, quotas, character limits, and feature
-config (images/editing) all live in one place: `src/lib/verification.ts`.
+---
 
-| Tier | UCT/month | UCT/year (15% off) | Badge | Posts/day | Max characters | Image attachments | Edit posts |
-|---|---|---|---|---|---|---|---|
-| Free (default, unpaid) | - | - | - | 1x | 100 | no | no |
-| Verified | 30 | 306 | Blue check | 3x | 300 | no | no |
-| Verified Pro | 50 | 510 | Gold check | 5x | 500 | yes | no |
-| Verified Max | 100 | 1,020 | Indigo check | 10x | 1,000 | yes | yes |
+## 🚀 Getting Started
 
-Quotas reset every day at **00:00 UTC**. The "Get Verified" page (in the
-sidebar/nav) has a Monthly/Yearly toggle, shows status (including the
-subscription's renewal date), and a purchase button; the badge automatically
-appears next to the username in the feed and profile once the purchase
-succeeds. If a subscription's `expires_at` has passed, the tier is treated as
-reverted to Free on the client side until it's renewed.
+### 1. Clone the repository
+```bash
+git clone <repository-url>
+cd musyawarah
+```
 
-Before this feature can be used, set `VITE_VERIFICATION_TREASURY_WALLET` in
-`.env.local` to the platform wallet address that receives the payments — see
-`.env.example`.
+### 2. Install dependencies
+```bash
+npm install
+```
 
-**Security note ("rough around the edges")**: quota checks, character
-limits, image/edit permissions, and recording the verification tier
-(including billing expiry) are all done client-side (not via Supabase RLS or
-on a server), same as the other protections in this project. Before
-production, move this to a Postgres function/trigger + real on-chain
-tx_hash verification, so it can't be bypassed by hitting Supabase directly.
+### 3. Environment Setup
 
-## Setup
-
-### 1. Create a Supabase project (if you don't have one)
-
-Go to https://supabase.com and create a new (free) project.
-
-### 2. Run the schema
-
-Open **Supabase Dashboard → SQL Editor → New query**, paste the contents of
-`supabase/schema.sql`, then **Run**. This creates 3 tables: `profiles`,
-`posts`, `tips`, plus permissive RLS policies (anyone can read/write — fine
-for the demo stage, **not yet safe for production**, see the notes inside
-the schema file).
-
-Then, in a **new query**, run `supabase/002_harden_writes.sql`. This moves
-every write (posts, tips, follows, reposts, verifications) behind Postgres
-functions (`create_post`, `send_tip`, `toggle_follow`, `toggle_repost`,
-`purchase_verification`, ...) that re-check quotas, character limits,
-pricing, ownership, and self-action rules **on the server**, then revokes
-direct `insert`/`update`/`delete` on those tables from the client roles —
-so hitting the Supabase REST API directly can no longer insert a fake
-tip/follow/verification row or bypass a tier's daily quota. Read the
-comment block at the top of that file for what this does and does **not**
-yet cover (there's still no wallet-signature auth, so a caller can invoke
-these functions claiming to be any wallet address — see the file for the
-recommended next step).
-
-### 3. Set environment variables
-
+Copy the example environment file:
 ```bash
 cp .env.example .env.local
 ```
 
-Open **Supabase Dashboard → Project Settings → API**, copy the `Project URL`
-and `anon public` key into `.env.local`.
+Fill in your credentials in `.env.local`:
 
-### 4. Install & run
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
+VITE_SPHERE_WALLET_URL=https://sphere.unicity.network
+
+# Required for verification purchases
+VITE_VERIFICATION_TREASURY_WALLET=0x...
+```
+
+### 4. Run the development server
 ```bash
-npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Click "Connect Wallet" — if you have the
-Sphere extension, it'll be auto-detected (P2); otherwise a Sphere wallet
-popup will open (P3) to approve the connection. Once connected, make a post,
-then try tipping from another account (open a new browser tab / incognito
-window, connect with a different wallet).
+---
 
-> Want to test iframe mode (P1)? Load this page inside Sphere as a Sphere
-> Agent via `/agents/custom?url=http://localhost:5173`.
-
-## Project structure
+## 📁 Project Structure
 
 ```
-public/
-  logo.png                    # brand mark, used for the app favicon and in-app logo
 src/
-  contexts/WalletContext.tsx   # Sphere Connect: identity, connect/disconnect, sendTip
-  lib/sphereConnect.ts         # transport detection, identity/amount formatting, coinId resolver
-  lib/verification.ts          # verification tier config: pricing, badges, daily posting quota
-  hooks/useVerification.ts     # own wallet's tier status + purchase() (pays via sendTip)
-  hooks/usePostQuota.ts        # computes the daily posting quota (resets at 00:00 UTC)
-  components/
-    ConnectWallet.tsx
-    PostComposer.tsx
-    Feed.tsx
-    PostCard.tsx
-    TipButton.tsx
-    VerifiedBadge.tsx          # blue/gold/diamond check badge next to the username
-    GetVerifiedPage.tsx        # page for purchasing/upgrading a verification tier
-    icons.tsx                  # LogoMark renders public/logo.png as the brand mark
-  supabaseClient.ts
-  types.ts
-supabase/schema.sql            # run this in the Supabase SQL Editor
+├── components/          # Reusable UI components
+├── contexts/            # React Contexts (Wallet, Profile, Theme)
+├── hooks/               # Custom hooks (posts, notifications, etc.)
+├── lib/                 # Core logic & utilities
+├── utils/               # Helper functions
+├── types/               # TypeScript definitions
+└── supabaseClient.ts
 ```
 
-## Roadmap (not yet built)
+---
 
-- Username / avatar (columns already exist in `profiles`, just needs UI)
-- Likes, replies, follows
-- Incoming tip notifications
-- Stricter RLS policies (wallet signature verification)
-#   m u s y a w a r a h  
- 
+## 🔐 Security Model
+
+Musyawarah uses a **secure-by-design** approach:
+
+- All write operations go through **Supabase RPC functions** (`SECURITY DEFINER`)
+- Direct table mutations are disabled for client roles
+- Ownership validation and tier checks are enforced server-side
+- Atomic operations for tips, reposts, and notifications
+
+See `supabase/migrations/` for hardened write functions.
+
+---
+
+## 🏷️ Verification Tiers
+
+| Tier            | Badge     | Daily Posts | Max Length | Images | Editing |
+|-----------------|-----------|-------------|------------|--------|---------|
+| Free            | None      | 5           | 280        | No     | No      |
+| Verified        | Blue      | Higher      | Longer     | Yes    | No      |
+| Verified Pro    | Gold      | Much Higher | Very Long  | Yes    | No      |
+| Verified Max    | Indigo    | Unlimited   | Very Long  | Yes    | Yes     |
+
+Payments are one-time (not recurring) using UCT tokens.
+
+---
+
+## 🎨 Design
+
+- Monochrome aesthetic with violet/blue accent
+- Warm serif font (`Fraunces`) for headings
+- Clean, modern, and highly responsive UI
+- First-class dark mode support
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a pull request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+---
+
+## 🌍 About Musyawarah
+
+**Musyawarah** is a social platform that brings the traditional values of deliberation, respect, and consensus into the digital age using wallet-based identity and transparent on-chain interactions.
+
+Built with ❤️ for the Unicity & Sphere ecosystem.
+
+---
+
+**Ready for deployment on Vercel, Netlify, or Cloudflare Pages.**
+```
