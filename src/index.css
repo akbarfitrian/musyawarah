@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme — pure white surfaces, pure black text/accents. No color
+       tinting: the only color left in the whole UI is the fixed blue used
+       for unread-message notifications (see `notify` in tailwind.config.js
+       and VerifiedBadge's tier check colors, which are unrelated to theme). */
+    --color-base: 255 255 255;
+    --color-base-soft: 250 250 250;
+    --color-surface: 255 255 255;
+    --color-surface-soft: 245 245 245;
+    --color-surface-hover: 237 237 237;
+    --color-surface-border: rgba(0, 0, 0, 0.1);
+    --color-surface-border-strong: rgba(0, 0, 0, 0.18);
+    --color-ink: 0 0 0;
+    --color-ink-muted: 82 82 82;
+    --color-ink-faint: 140 140 140;
+
+    /* Monochrome accent — used for CTAs, active states, links, focus rings.
+       Black in light mode, flips to white in dark mode below. */
+    --color-accent: 0 0 0;
+    --color-accent-contrast: 255 255 255;
+
+    --shadow-card-highlight: rgba(255, 255, 255, 0.6);
+    --shadow-card-1: rgba(0, 0, 0, 0.1);
+    --shadow-card-2: rgba(0, 0, 0, 0.06);
+
+    --scrollbar-thumb: rgba(0, 0, 0, 0.14);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.26);
+    --selection-bg: rgba(0, 0, 0, 0.15);
+  }
+
+  .dark {
+    /* Dark theme — pure black surfaces, pure white text/accents. Exact
+       mirror image of light mode. */
+    --color-base: 0 0 0;
+    --color-base-soft: 10 10 10;
+    --color-surface: 15 15 15;
+    --color-surface-soft: 23 23 23;
+    --color-surface-hover: 34 34 34;
+    --color-surface-border: rgba(255, 255, 255, 0.1);
+    --color-surface-border-strong: rgba(255, 255, 255, 0.18);
+    --color-ink: 255 255 255;
+    --color-ink-muted: 173 173 173;
+    --color-ink-faint: 115 115 115;
+
+    --color-accent: 255 255 255;
+    --color-accent-contrast: 0 0 0;
+
+    --shadow-card-highlight: rgba(255, 255, 255, 0.05);
+    --shadow-card-1: rgba(0, 0, 0, 0.5);
+    --shadow-card-2: rgba(0, 0, 0, 0.32);
+
+    --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+    --selection-bg: rgba(255, 255, 255, 0.22);
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-full;
+  }
+
+  html {
+    @apply bg-base;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-base text-ink font-sans text-[15px] leading-normal antialiased transition-colors duration-200;
+  }
+
+  button,
+  input,
+  textarea {
+    @apply font-sans;
+  }
+
+  textarea:focus,
+  input:focus {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--selection-bg);
+  }
+
+  /* slim, on-brand scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+}
+
+@layer utilities {
+  .visually-hidden {
+    @apply absolute h-px w-px overflow-hidden whitespace-nowrap border-0 p-0;
+    clip: rect(0, 0, 0, 0);
+  }
+}
