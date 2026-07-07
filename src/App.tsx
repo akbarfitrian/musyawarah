@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { WalletProvider } from './contexts/WalletContext'
 import { ProfileProvider } from './contexts/ProfileContext'
@@ -11,6 +11,7 @@ import { PostComposer } from './components/PostComposer'
 import { Feed } from './components/Feed'
 import { ProfilePage } from './components/ProfilePage'
 import { GetVerifiedPage } from './components/GetVerifiedPage'
+import { QuestsPage } from './components/QuestsPage'
 import { MessagesPage } from './components/MessagesPage'
 import { NotificationsPage } from './components/NotificationsPage'
 import { SettingsPage } from './components/SettingsPage'
@@ -31,11 +32,29 @@ function AppShell() {
   // Wallet yang thread-nya harus langsung kebuka pas masuk ke tab Messages
   // (mis. abis klik "Message" di profil orang lain).
   const [dmTarget, setDmTarget] = useState<string | null>(null)
+  // post_id yang harus di-scroll-ke dan disorot di halaman profil (abis
+  // klik salah satu row "Trending" di RightPanel.tsx).
+  const [highlightPostId, setHighlightPostId] = useState<string | null>(null)
 
   function visitProfile(walletAddress: string) {
     setViewedWallet(walletAddress)
     setView('profile')
   }
+
+  function visitPost(walletAddress: string, postId: string) {
+    setViewedWallet(walletAddress)
+    setView('profile')
+    setHighlightPostId(postId)
+  }
+
+  // Sorotan cuma nempel sebentar (samaan sama durasi animate-highlight-flash
+  // di tailwind.config.js) -- abis itu dilepas lagi biar nggak nempel
+  // permanen kalau user pindah-pindah tab terus balik lagi ke profil ini.
+  useEffect(() => {
+    if (!highlightPostId) return
+    const timer = setTimeout(() => setHighlightPostId(null), 2600)
+    return () => clearTimeout(timer)
+  }, [highlightPostId])
 
   function goToOwnProfile() {
     setViewedWallet(null)
@@ -56,11 +75,13 @@ function AppShell() {
           ? 'Messages'
           : view === 'verify'
             ? 'Get Verified'
-            : view === 'settings'
-              ? 'Settings'
-              : viewedWallet
-                ? shortenAddress(viewedWallet)
-                : 'Profile'
+            : view === 'quests'
+              ? 'Quests'
+              : view === 'settings'
+                ? 'Settings'
+                : viewedWallet
+                  ? shortenAddress(viewedWallet)
+                  : 'Profile'
 
   return (
     <div className="mx-auto grid min-h-screen max-w-[1280px] grid-cols-1 items-start md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[275px_minmax(0,600px)_350px]">
@@ -100,6 +121,10 @@ function AppShell() {
           <div className="px-4 pt-4">
             <GetVerifiedPage onBack={() => setView('home')} />
           </div>
+        ) : view === 'quests' ? (
+          <div className="px-4 pt-4">
+            <QuestsPage onBack={() => setView('home')} />
+          </div>
         ) : view === 'settings' ? (
           <div className="px-4 pt-4">
             <SettingsPage onBack={() => setView('home')} />
@@ -111,6 +136,7 @@ function AppShell() {
               onChanged={refresh}
               onMessage={messageWallet}
               onGetVerified={() => setView('verify')}
+              highlightPostId={highlightPostId}
               onBack={() => {
                 setViewedWallet(null)
                 setView('home')
@@ -121,10 +147,10 @@ function AppShell() {
       </main>
 
       <RightPanel
-        posts={posts}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onVisitProfile={visitProfile}
+        onVisitPost={visitPost}
       />
 
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">

@@ -66,10 +66,10 @@ create table if not exists tier_config (
 
 insert into tier_config (tier, daily_post_limit, max_post_chars, can_attach_image, can_edit_post, monthly_price_uct)
 values
-  ('none', 1, 100, false, false, 0),
-  ('verified', 3, 300, false, false, 30),
-  ('verified_pro', 5, 500, true, false, 50),
-  ('verified_max', 10, 1000, true, true, 100)
+  ('none', 1, 60, false, false, 0),
+  ('verified', 2, 150, false, false, 30),
+  ('verified_pro', 2, 250, true, false, 50),
+  ('verified_max', 3, 350, true, true, 100)
 on conflict (tier) do update set
   daily_post_limit = excluded.daily_post_limit,
   max_post_chars = excluded.max_post_chars,

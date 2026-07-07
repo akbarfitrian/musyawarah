@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Post } from '../types'
 import { TipButton } from './TipButton'
 import { RepostButton } from './RepostButton'
@@ -18,11 +18,15 @@ export function PostCard({
   onTipped,
   onDeleted,
   onVisitProfile,
+  highlighted,
 }: {
   post: Post
   onTipped: () => void
   onDeleted: () => void
   onVisitProfile?: (walletAddress: string) => void
+  /** True kalau post ini yang harus di-scroll-ke dan disorot -- dipakai
+   * pas masuk dari link "Trending" di RightPanel.tsx. */
+  highlighted?: boolean
 }) {
   const { walletAddress } = useWallet()
   const { profile: myProfile } = useProfile()
@@ -32,6 +36,15 @@ export function PostCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isOwnPost = walletAddress === post.author_wallet
   const avatarUrl = resolveAuthorAvatar(post.author_wallet, post.author_avatar_url, walletAddress, myProfile?.avatar_url)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // Scroll ke post ini begitu ditandai highlighted (habis diklik dari
+  // "Trending" di RightPanel.tsx). Cuma jalan sekali pas jadi true.
+  useEffect(() => {
+    if (highlighted) {
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [highlighted])
 
   // Ngedit post cuma boleh buat tier Verified Max, dan cuma buat post
   // sendiri -- lihat canEditPost() di lib/verification.ts.
@@ -116,7 +129,13 @@ export function PostCard({
   }
 
   return (
-    <div className="border-b border-surface-border px-4 pt-3 transition-colors hover:bg-surface/40">
+    <div
+      ref={cardRef}
+      id={`post-${post.id}`}
+      className={`border-b border-surface-border px-4 pt-3 transition-colors hover:bg-surface/40 ${
+        highlighted ? 'animate-highlight-flash rounded-2xl ring-2 ring-brand-violet/70' : ''
+      }`}
+    >
       {post.reposted_by_wallet && (
         <button
           type="button"

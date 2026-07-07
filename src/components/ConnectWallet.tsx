@@ -108,8 +108,8 @@ export function ConnectWallet() {
         onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
       >
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold text-white ring-2 ring-offset-2 ring-offset-base"
-          style={{ background: avatarColor(walletAddress), boxShadow: '0 0 0 2px rgba(37,99,235,0.5)' }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold text-white"
+          style={{ background: avatarColor(walletAddress) }}
         >
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />

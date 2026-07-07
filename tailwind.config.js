@@ -86,10 +86,18 @@ export default {
           '0%': { opacity: '0', transform: 'scale(0.96)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
+        // Dipakai buat nyorotin post yang dituju abis diklik dari
+        // "Trending" di RightPanel.tsx -- ring-nya keliatan sekilas terus
+        // meluruh, bukan nempel permanen.
+        'highlight-flash': {
+          '0%': { backgroundColor: 'rgb(var(--color-accent) / 0.12)' },
+          '100%': { backgroundColor: 'rgb(var(--color-accent) / 0)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.18s ease-out',
         'scale-in': 'scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+        'highlight-flash': 'highlight-flash 2.4s ease-out forwards',
       },
     },
   },

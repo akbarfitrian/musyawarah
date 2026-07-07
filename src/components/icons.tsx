@@ -531,3 +531,25 @@ export function MoonIcon({ size = 18, className }: IconProps) {
     </svg>
   )
 }
+
+export function TrophyIcon({ size = 22, filled = false }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M7 4h10v5a5 5 0 01-10 0V4z"
+        stroke="currentColor"
+        strokeWidth={filled ? 0 : 2}
+        fill={filled ? 'currentColor' : 'none'}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 5H4a3 3 0 003 3M17 5h3a3 3 0 01-3 3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 13.5v3M9 20h6M9.5 20c0-1.7.7-2.8 2.5-3 1.8.2 2.5 1.3 2.5 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

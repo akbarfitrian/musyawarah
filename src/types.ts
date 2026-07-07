@@ -109,6 +109,43 @@ export interface AppNotification {
   post_preview?: string | null
 }
 
+export type QuestLevel = 'easy' | 'medium' | 'hard'
+
+export interface QuestBoardRow {
+  quest_id: string
+  title: string
+  description: string
+  level: QuestLevel
+  points: number
+  order_index: number
+  unlock_after: string | null
+  unlock_after_order: number | null
+  verify_label: string
+  completed: boolean
+  completed_at: string | null
+  unlocked: boolean
+}
+
+export type TopTippedPeriod = 'weekly' | 'all_time'
+
+export interface TopTippedRow {
+  wallet_address: string
+  username: string | null
+  avatar_url: string | null
+  verification_tier: VerificationTier
+  total_amount: number
+}
+
+export interface TopTippedPostRow {
+  post_id: string
+  content: string
+  author_wallet: string
+  username: string | null
+  avatar_url: string | null
+  verification_tier: VerificationTier
+  total_amount: number
+}
+
 export interface AssetPrice {
   /** ID CoinGecko (mis. 'bitcoin') buat token yang harganya/logo-nya live
    * dari API. null buat token custom (UCT/USDU) yang di-hardcode. */

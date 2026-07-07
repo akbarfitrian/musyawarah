@@ -13,13 +13,13 @@ create table if not exists profiles (
 );
 
 -- 2. Posts / cast
--- NOTE: batas 1000 karakter di sini adalah batas ATAS global (tier tertinggi,
--- Verified Max). Batas per-tier yang lebih ketat (Free 100 / Verified 300 /
--- Verified Pro 500) ditegakkan di sisi klien -- lihat src/lib/verification.ts.
+-- NOTE: batas 350 karakter di sini adalah batas ATAS global (tier tertinggi,
+-- Verified Max). Batas per-tier yang lebih ketat (Free 60 / Verified 150 /
+-- Verified Pro 250) ditegakkan di sisi klien -- lihat src/lib/verification.ts.
 create table if not exists posts (
   id uuid primary key default gen_random_uuid(),
   author_wallet text not null references profiles(wallet_address) on delete cascade,
-  content text not null check (char_length(content) <= 1000),
+  content text not null check (char_length(content) <= 350),
   image_url text, -- cuma keisi buat tier yang boleh nyisipin gambar (Verified Pro & Max)
   edited_at timestamptz, -- keisi kalau post ini pernah diedit (cuma tier Verified Max yang boleh edit)
   created_at timestamptz not null default now()
@@ -30,7 +30,7 @@ create table if not exists posts (
 alter table posts add column if not exists image_url text;
 alter table posts add column if not exists edited_at timestamptz;
 alter table posts drop constraint if exists posts_content_check;
-alter table posts add constraint posts_content_check check (char_length(content) <= 1000);
+alter table posts add constraint posts_content_check check (char_length(content) <= 350);
 
 -- 3. Tips
 create table if not exists tips (
@@ -99,10 +99,10 @@ create index if not exists idx_follows_followed on follows (followed_wallet);
 --
 --   tier            | UCT/bulan | UCT/tahun (hemat 15%) | badge         | post/hari | max karakter | gambar | edit
 --   ----------------|-----------|-----------------------|---------------|-----------|--------------|--------|------
---   (none / free)   | -         | -                     | -             | 1         | 100          | tidak  | tidak
---   verified        | 30        | 306                   | centang biru  | 3         | 300          | tidak  | tidak
---   verified_pro    | 50        | 510                   | centang emas  | 5         | 500          | ya     | tidak
---   verified_max    | 100       | 1.020                 | centang indigo| 10        | 1.000        | ya     | ya
+--   (none / free)   | -         | -                     | -             | 1         | 60           | tidak  | tidak
+--   verified        | 30        | 306                   | centang biru  | 2         | 150          | tidak  | tidak
+--   verified_pro    | 50        | 510                   | centang emas  | 2         | 250          | ya     | tidak
+--   verified_max    | 100       | 1.020                 | centang indigo| 3         | 350          | ya     | ya
 --
 -- Harga & kuota di atas cuma dokumentasi -- sumber kebenarannya ada di
 -- TIER_CONFIG (src/lib/verification.ts), dan itu yang dipakai di sisi klien.

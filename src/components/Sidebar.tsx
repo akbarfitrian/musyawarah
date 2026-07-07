@@ -1,8 +1,8 @@
-import { LogoMark, BellIcon, VerifiedNavIcon, HomeIcon, MessageIcon, SettingsIcon, UserIcon } from './icons'
+import { LogoMark, BellIcon, VerifiedNavIcon, HomeIcon, MessageIcon, SettingsIcon, UserIcon, TrophyIcon } from './icons'
 import { ConnectWallet } from './ConnectWallet'
 import { focusComposer } from '../utils/composer'
 
-export type View = 'home' | 'profile' | 'messages' | 'verify' | 'settings' | 'notifications'
+export type View = 'home' | 'profile' | 'messages' | 'verify' | 'settings' | 'notifications' | 'quests'
 
 export function Sidebar({
   view,
@@ -88,6 +88,17 @@ export function Sidebar({
             <VerifiedNavIcon size={22} filled={view === 'verify'} />
           </span>
           <span>Get Verified</span>
+        </button>
+        <button
+          className={`group flex w-auto items-center gap-3 rounded-full px-3 py-3 text-[17px] font-bold transition-colors lg:w-full ${
+            view === 'quests'
+              ? 'text-ink'
+              : 'text-ink-muted hover:bg-surface hover:text-ink'
+          }`}
+          onClick={() => onNavigate('quests')}
+        >
+          <TrophyIcon size={22} filled={view === 'quests'} />
+          <span>Quests</span>
         </button>
         <button
           className={`group flex w-auto items-center gap-3 rounded-full px-3 py-3 text-[17px] font-bold transition-colors lg:w-full ${

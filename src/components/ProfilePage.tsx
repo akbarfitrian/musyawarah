@@ -21,6 +21,7 @@ export function ProfilePage({
   onBack,
   onMessage,
   onGetVerified,
+  highlightPostId,
 }: {
   /** Kalau diisi, halaman ini nampilin profil wallet lain (read-only). Kalau
    * kosong, nampilin profil wallet yang lagi connect (bisa diedit). */
@@ -31,6 +32,9 @@ export function ProfilePage({
   onMessage?: (walletAddress: string) => void
   /** Dipanggil pas tombol "Get Verified" di profil sendiri diklik. */
   onGetVerified?: () => void
+  /** post_id yang harus di-scroll-ke dan disorot di dalam feed profil ini
+   * (mis. abis klik "Trending" di RightPanel.tsx). */
+  highlightPostId?: string | null
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()
   const isOwnProfile = !visitedWallet || visitedWallet === myWallet
@@ -321,6 +325,7 @@ export function ProfilePage({
           error={error}
           onTipped={refreshAll}
           onDeleted={refreshAll}
+          highlightPostId={highlightPostId}
           emptyMessage={
             isOwnProfile
               ? 'No posts yet. Try creating your first post on Home.'

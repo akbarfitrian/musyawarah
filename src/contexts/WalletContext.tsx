@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { ConnectClient, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect'
 import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser'
+import { supabase } from '../supabaseClient'
 import {
   DEFAULT_UCT_DECIMALS,
   formatRecipient,
@@ -125,6 +126,22 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
   return { coinId: override ?? 'UCT', decimals: DEFAULT_UCT_DECIMALS }
 }
 
+/**
+ * Catat quest "Connect Sphere Wallet" -- lihat supabase/003_quests.sql.
+ * Best-effort (di-.catch aja) sama kayak notifyFollow/notifyRepost/notifyTip
+ * di lib/notify.ts: kalau gagal, jangan sampai bikin flow connect ikutan
+ * gagal, cukup di-log ke console.
+ */
+async function recordWalletConnectQuest(handle: string) {
+  if (!handle) return
+  try {
+    const { error } = await supabase.rpc('record_wallet_connect', { p_wallet: handle })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[MUSYAWARAH] Gagal mencatat quest connect wallet:', e)
+  }
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
@@ -229,9 +246,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         clientRef.current = client
         transportRef.current = transport
         setConnectionMode('iframe')
-        setWalletAddress(identityToHandle(result.identity as SphereIdentity))
+        const handle = identityToHandle(result.identity as SphereIdentity)
+        setWalletAddress(handle)
         unsubEventsRef.current = attachEvents(client)
         refreshBalance()
+        recordWalletConnectQuest(handle)
       } catch {
         // Belum pernah approve, atau dApp ini lagi nggak dimuat di dalam
         // Sphere -> diemin aja, biarin tombol "Hubungkan Wallet" yang muncul.
@@ -264,12 +283,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       transportRef.current = transport
       uctCoinRef.current = null
       setConnectionMode('iframe')
-      setWalletAddress(identityToHandle(result.identity as SphereIdentity))
+      const handle = identityToHandle(result.identity as SphereIdentity)
+      setWalletAddress(handle)
       setIsWalletLocked(false)
 
       unsubEventsRef.current?.()
       unsubEventsRef.current = attachEvents(client)
       refreshBalance()
+      recordWalletConnectQuest(handle)
     } catch (err) {
       console.error('[MUSYAWARAH] Gagal connect ke Sphere wallet:', err)
       const message = err instanceof Error ? err.message : 'Failed to connect wallet. Try again.'

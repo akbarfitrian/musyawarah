@@ -1,31 +1,45 @@
-import type { Post } from '../types'
+import { useState } from 'react'
+import type { TopTippedPeriod } from '../types'
 import { SearchIcon, FlameIcon } from './icons'
 import { VerifiedBadge } from './VerifiedBadge'
-import { avatarColor, avatarInitial, resolveAuthorAvatar, shortenAddress } from '../utils/avatar'
-import { useWallet } from '../contexts/WalletContext'
-import { useProfile } from '../contexts/ProfileContext'
+import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { useUserSearch } from '../hooks/useUserSearch'
+import { useTopTipped } from '../hooks/useTopTipped'
+import { useTopTippedPosts } from '../hooks/useTopTippedPosts'
+
+const PERIOD_TABS: { value: TopTippedPeriod; label: string }[] = [
+  { value: 'weekly', label: 'This Week' },
+  { value: 'all_time', label: 'All-Time' },
+]
+
+type LeaderboardTab = 'users' | 'trending'
+
+const LEADERBOARD_TABS: { value: LeaderboardTab; label: string }[] = [
+  { value: 'users', label: 'Users' },
+  { value: 'trending', label: 'Trending' },
+]
 
 export function RightPanel({
-  posts,
   searchQuery,
   onSearchChange,
   onVisitProfile,
+  onVisitPost,
 }: {
-  posts: Post[]
   searchQuery: string
   onSearchChange: (v: string) => void
   onVisitProfile?: (walletAddress: string) => void
+  /** Dipanggil pas satu row di sub-tab "Trending" diklik -- navigasi ke
+   * profil author-nya sekaligus nyorotin post itu di dalam feed-nya. */
+  onVisitPost?: (walletAddress: string, postId: string) => void
 }) {
-  const { walletAddress } = useWallet()
-  const { profile: myProfile } = useProfile()
   const { results: userResults, loading: searching } = useUserSearch(searchQuery)
   const showDropdown = searchQuery.trim().length > 0
 
-  const topTipped = [...posts]
-    .filter((p) => (p.tip_total ?? 0) > 0)
-    .sort((a, b) => (b.tip_total ?? 0) - (a.tip_total ?? 0))
-    .slice(0, 5)
+  const [period, setPeriod] = useState<TopTippedPeriod>('weekly')
+  const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>('users')
+
+  const { rows: topUsers, loading: loadingUsers } = useTopTipped(period)
+  const { rows: topPosts, loading: loadingPosts } = useTopTippedPosts(period)
 
   function selectUser(walletAddress: string) {
     onVisitProfile?.(walletAddress)
@@ -98,59 +112,150 @@ export function RightPanel({
       </div>
 
       <div className="rounded-2xl border border-surface-border bg-surface p-4 shadow-card">
-        <h2 className="m-0 mb-3 flex items-center gap-2 font-display text-[15px] font-semibold text-ink">
-          <span className="text-gold">
-            <FlameIcon size={16} />
-          </span>
-          Top tipped
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="m-0 flex items-center gap-2 font-display text-[15px] font-semibold text-ink">
+            <span className="text-gold">
+              <FlameIcon size={16} />
+            </span>
+            Top Tipped
+          </h2>
 
-        {topTipped.length === 0 ? (
-          <p className="py-2 text-[13px] text-ink-muted">No tipped posts yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {topTipped.map((p, i) => {
-              const avatarUrl = resolveAuthorAvatar(p.author_wallet, p.author_avatar_url, walletAddress, myProfile?.avatar_url)
-              return (
-              <li key={p.id} className="flex items-center gap-2.5">
-                <span className="w-5 shrink-0 text-center text-[13px] font-semibold text-ink-muted">
-                  {i + 1}.
-                </span>
-                <button
-                  type="button"
-                  className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full text-[12px] font-semibold text-white transition-transform duration-150 hover:scale-105"
-                  style={{ background: avatarColor(p.author_wallet) }}
-                  onClick={() => onVisitProfile?.(p.author_wallet)}
-                  aria-label={`View profile ${shortenAddress(p.author_wallet)}`}
-                >
-                  <span className="flex h-full w-full items-center justify-center">
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      avatarInitial(p.author_wallet)
-                    )}
+          <div className="flex shrink-0 rounded-full bg-base p-0.5">
+            {PERIOD_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setPeriod(tab.value)}
+                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors ${
+                  period === tab.value
+                    ? 'bg-surface-hover text-ink shadow-sm'
+                    : 'text-ink-faint hover:text-ink-muted'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-3 flex gap-1 border-b border-surface-border">
+          {LEADERBOARD_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setLeaderboardTab(tab.value)}
+              className={`-mb-px border-b-2 px-2 pb-2 text-[13px] font-semibold transition-colors ${
+                leaderboardTab === tab.value
+                  ? 'border-brand-violet text-ink'
+                  : 'border-transparent text-ink-faint hover:text-ink-muted'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {leaderboardTab === 'users' ? (
+          loadingUsers ? (
+            <p className="py-2 text-[13px] text-ink-muted">Loading…</p>
+          ) : topUsers.length === 0 ? (
+            <p className="py-2 text-[13px] text-ink-muted">
+              {period === 'weekly' ? 'No tips sent this week yet.' : 'No tips sent yet.'}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {topUsers.map((row, i) => (
+                <li key={row.wallet_address} className="flex items-center gap-2.5">
+                  <span className="w-5 shrink-0 text-center text-[13px] font-semibold text-ink-muted">
+                    {i + 1}.
                   </span>
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full text-[12px] font-semibold text-white transition-transform duration-150 hover:scale-105"
+                    style={{ background: avatarColor(row.wallet_address) }}
+                    onClick={() => onVisitProfile?.(row.wallet_address)}
+                    aria-label={`View profile ${shortenAddress(row.wallet_address)}`}
+                  >
+                    <span className="flex h-full w-full items-center justify-center">
+                      {row.avatar_url ? (
+                        <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        avatarInitial(row.username || row.wallet_address)
+                      )}
+                    </span>
+                  </button>
+                  <div className="min-w-0 flex-1">
                     <button
                       type="button"
-                      className="truncate font-mono text-[13px] font-semibold text-ink hover:underline"
-                      onClick={() => onVisitProfile?.(p.author_wallet)}
+                      className="flex min-w-0 items-center gap-1 hover:underline"
+                      onClick={() => onVisitProfile?.(row.wallet_address)}
                     >
-                      {shortenAddress(p.author_wallet)}
+                      <span className="truncate font-mono text-[13px] font-semibold text-ink">
+                        {row.username ? `@${row.username}` : shortenAddress(row.wallet_address)}
+                      </span>
+                      <VerifiedBadge tier={row.verification_tier} size={13} />
                     </button>
-                    <VerifiedBadge tier={p.author_verification_tier} size={13} />
                   </div>
-                  <span className="line-clamp-1 text-[13px] text-ink-muted">{p.content}</span>
-                </div>
-                <span className="shrink-0 rounded-full bg-brand-blue/15 px-2 py-0.5 text-[12px] font-semibold text-brand-blue">
-                  {p.tip_total} UCT
-                </span>
+                  <span className="shrink-0 rounded-full bg-brand-blue/15 px-2 py-0.5 text-[12px] font-semibold text-brand-blue">
+                    {row.total_amount} UCT
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : loadingPosts ? (
+          <p className="py-2 text-[13px] text-ink-muted">Loading…</p>
+        ) : topPosts.length === 0 ? (
+          <p className="py-2 text-[13px] text-ink-muted">
+            {period === 'weekly' ? 'No tipped posts this week yet.' : 'No tipped posts yet.'}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {topPosts.map((row, i) => (
+              <li key={row.post_id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 rounded-xl p-1 -m-1 text-left transition-colors hover:bg-surface-hover"
+                  onClick={() => onVisitPost?.(row.author_wallet, row.post_id)}
+                  aria-label={`View post by ${row.username ? `@${row.username}` : shortenAddress(row.author_wallet)}`}
+                >
+                  <span className="w-5 shrink-0 text-center text-[13px] font-semibold text-ink-muted">
+                    {i + 1}.
+                  </span>
+                  <span
+                    className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full text-[12px] font-semibold text-white"
+                    style={{ background: avatarColor(row.author_wallet) }}
+                  >
+                    <span className="flex h-full w-full items-center justify-center">
+                      {row.avatar_url ? (
+                        <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        avatarInitial(row.username || row.author_wallet)
+                      )}
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <span className="truncate font-mono text-[13px] font-semibold text-ink">
+                        {row.username ? `@${row.username}` : shortenAddress(row.author_wallet)}
+                      </span>
+                      <VerifiedBadge tier={row.verification_tier} size={13} />
+                    </span>
+                    <span className="line-clamp-1 block text-[13px] text-ink-muted">{row.content}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-brand-blue/15 px-2 py-0.5 text-[12px] font-semibold text-brand-blue">
+                    {row.total_amount} UCT
+                  </span>
+                </button>
               </li>
-              )
-            })}
+            ))}
           </ul>
+        )}
+
+        {period === 'weekly' && (
+          <p className="mt-3 border-t border-surface-border pt-2.5 text-[11px] text-ink-faint">
+            Resets Monday 00:00 UTC
+          </p>
         )}
       </div>
 
