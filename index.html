@@ -217,6 +217,14 @@
   @media (prefers-reduced-motion: reduce){
     .reveal{ opacity:1; transform:none; transition:none; }
   }
+  /* Memastikan tombol primary di dalam navlinks tetap berwarna hitam dan tidak pudar */
+.navlinks a.btn-primary {
+  color: var(--black) !important;
+}
+.navlinks a.btn-primary:hover {
+  background: #e6e6e6;
+  color: var(--black) !important;
+}
 </style>
 </head>
 <body>
