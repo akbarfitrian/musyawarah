@@ -238,7 +238,3 @@ Intended to be MIT-licensed, but **no `LICENSE` file is committed yet** — add 
 **Musyawarah** is a social platform that brings the traditional values of deliberation, respect, and consensus into the digital age using wallet-based identity and transparent on-chain interactions.
 
 Built with ❤️ for the Unicity & Sphere ecosystem.
-
----
-
-**Ready for deployment on Vercel, Netlify, or Cloudflare Pages.**
