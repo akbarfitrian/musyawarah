@@ -104,11 +104,6 @@ export function QuestsPage({ onBack }: { onBack?: () => void }) {
             </table>
           </div>
         )}
-
-        <p className="mt-4 text-[12px] text-ink-faint">
-          Total {maxPoints} points, split 7 easy / 2 medium / 1 hard. Progress is recorded on the server when the
-          related action succeeds (not via an external webhook -- this app has no separate backend).
-        </p>
       </div>
     </div>
   )
