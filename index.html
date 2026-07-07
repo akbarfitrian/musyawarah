@@ -1,34 +1,464 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#F7F9FC" />
-    <meta name="color-scheme" content="light" />
-    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="/favicon-256.png" sizes="256x256" />
-    <link rel="apple-touch-icon" href="/favicon-256.png" />
-    <title>MUSYAWARAH</title>
-    <!--
-      Type system: Fraunces (a warm, characterful serif) for the wordmark
-      and section headings via `font-display`, Plus Jakarta Sans — a
-      typeface designed for the city of Jakarta — for everything else, and
-      JetBrains Mono for wallet addresses & token amounts.
-    -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      html {
-        background: #f7f9fc;
-      }
-    </style>
-  </head>
-  <body class="bg-base">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Musyawarah - A wallet-based space for deliberation</title>
+<meta name="description" content="Musyawarah: a wallet-based social feed. Talk, agree, and tip — all recorded on-chain, with no centralized account." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+<link rel="icon" type="image/png" href="/favicon-256.png" sizes="256x256" />
+<style>
+  :root{
+    --black:#000000;
+    --white:#ffffff;
+    --surface:#0f0f0f;
+    --surface-soft:#171717;
+    --surface-hover:#1f1f1f;
+    --border: rgba(255,255,255,0.10);
+    --border-strong: rgba(255,255,255,0.20);
+    --ink:#ffffff;
+    --ink-muted:#adadad;
+    --ink-faint:#737373;
+    --blue:#2563eb;
+    --gold:#d97706;
+    --indigo:#4f46e5;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:var(--black);
+    color:var(--ink);
+    font-family:'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background: rgba(255,255,255,0.22); }
+  a{ color:inherit; text-decoration:none; }
+  .display{ font-family:'Fraunces', 'ui-serif', Georgia, serif; }
+  .mono{ font-family:'JetBrains Mono', ui-monospace, monospace; }
+  .wrap{ max-width:1160px; margin:0 auto; padding:0 28px; }
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky; top:0; z-index:50;
+    backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(0,0,0,0.72);
+    border-bottom:1px solid var(--border);
+  }
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    height:72px;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .logo-mark{
+  width:34px; height:34px;
+  flex-shrink:0;
+  object-fit:contain;
+  filter:invert(1);
+}
+  .wordmark{ font-family:'Fraunces', serif; font-weight:500; font-size:19px; letter-spacing:0.01em; }
+  .navlinks{ display:flex; align-items:center; gap:36px; }
+  .navlinks a{ font-size:14.5px; color:var(--ink-muted); transition:color .15s ease; }
+  .navlinks a:hover{ color:var(--ink); }
+  .navlinks{ }
+  @media (max-width: 860px){ .navlinks .nav-item{ display:none; } }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-size:14.5px; font-weight:600; padding:11px 20px; border-radius:100px;
+    border:1px solid transparent; cursor:pointer; white-space:nowrap;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn-primary{ background:var(--white); color:var(--black); }
+  .btn-primary:hover{ background:#e6e6e6; }
+  .btn-ghost{ background:transparent; color:var(--ink); border-color:var(--border-strong); }
+  .btn-ghost:hover{ background:var(--surface-soft); }
+  .btn-sm{ padding:8px 14px; font-size:13px; }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    padding:96px 0 88px;
+    display:grid; grid-template-columns:1.05fr 0.95fr; gap:56px; align-items:center;
+  }
+  @media (max-width: 980px){ .hero{ grid-template-columns:1fr; padding:56px 0 48px; } }
+
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12.5px; text-transform:uppercase; letter-spacing:0.12em;
+    color:var(--ink-faint); border:1px solid var(--border); border-radius:100px;
+    padding:6px 13px; margin-bottom:26px;
+  }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background:var(--gold); }
+
+  h1.headline{
+    font-size:clamp(2.4rem, 5vw, 3.7rem);
+    font-weight:500; line-height:1.06; letter-spacing:-0.01em;
+    margin:0 0 22px;
+  }
+  h1.headline em{ font-style:italic; font-weight:500; color:var(--ink); }
+  .headline .rule{ color:var(--ink-faint); }
+
+  .lede{ font-size:17.5px; color:var(--ink-muted); max-width:480px; margin:0 0 34px; }
+
+  .hero-ctas{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:30px; }
+
+  .trust-row{ display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--ink-faint); }
+  .trust-row .sep{ color:var(--border-strong); }
+
+  /* ---------- HERO MOCK FEED ---------- */
+  .mock-feed{ position:relative; }
+  .mock-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:18px 18px 16px; margin-bottom:12px;
+    box-shadow: 0 1px 0 0 rgba(255,255,255,0.03) inset, 0 12px 30px -10px rgba(0,0,0,0.6);
+  }
+  .mock-card.dim{ opacity:0.55; transform: scale(0.97); }
+  .mc-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .mc-avatar{ width:34px; height:34px; border-radius:9px; flex-shrink:0; }
+  .mc-name{ display:flex; align-items:center; gap:6px; font-weight:700; font-size:14.5px; }
+  .mc-time{ font-weight:400; font-size:12.5px; color:var(--ink-faint); }
+  .badge{ display:inline-flex; }
+  .mc-text{ font-size:15px; line-height:1.5; color:var(--ink); margin:0 0 14px; }
+  .mc-foot{ display:flex; align-items:center; justify-content:space-between; }
+  .mc-actions{ display:flex; align-items:center; gap:18px; color:var(--ink-faint); font-size:13px; }
+  .mc-tip{
+    display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600;
+    color:var(--gold); background:rgba(217,119,6,0.12); border:1px solid rgba(217,119,6,0.35);
+    padding:6px 12px; border-radius:100px;
+  }
+
+  /* ---------- SECTION SHELL ---------- */
+  section{ padding:88px 0; border-top:1px solid var(--border); }
+  .sec-head{ max-width:640px; margin-bottom:52px; }
+  .sec-eyebrow{ font-size:12.5px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-faint); margin-bottom:14px; }
+  .sec-title{ font-family:'Fraunces', serif; font-weight:500; font-size:clamp(1.7rem, 3vw, 2.35rem); line-height:1.15; margin:0 0 14px; }
+  .sec-desc{ color:var(--ink-muted); font-size:16px; max-width:560px; }
+
+  /* ---------- FEATURES ---------- */
+  .grid-3{ display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
+  @media (max-width: 860px){ .grid-3{ grid-template-columns:1fr; } }
+  .feat-card{
+    border:1px solid var(--border); border-radius:16px; padding:28px 24px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  }
+  .feat-num{ font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--ink-faint); margin-bottom:18px; }
+  .feat-title{ font-family:'Fraunces', serif; font-weight:500; font-size:19px; margin:0 0 10px; }
+  .feat-desc{ font-size:14.5px; color:var(--ink-muted); margin:0; }
+
+  /* ---------- TIERS ---------- */
+  .tiers{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  @media (max-width: 980px){ .tiers{ grid-template-columns:repeat(2, 1fr); } }
+  @media (max-width: 560px){ .tiers{ grid-template-columns:1fr; } }
+  .tier-card{
+    border:1px solid var(--border); border-radius:16px; padding:24px 20px;
+    display:flex; flex-direction:column; gap:16px;
+    position:relative;
+  }
+  .tier-card.hi{ border-color: rgba(217,119,6,0.45); background: linear-gradient(180deg, rgba(217,119,6,0.06), transparent); }
+  .tier-name{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; }
+  .tier-price{ font-family:'JetBrains Mono', monospace; }
+  .tier-price .amt{ font-size:26px; font-weight:500; }
+  .tier-price .unit{ font-size:12.5px; color:var(--ink-faint); }
+  .tier-price .yr{ font-size:11.5px; color:var(--ink-faint); margin-top:4px; }
+  .tier-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; font-size:13.5px; color:var(--ink-muted); flex:1; }
+  .tier-list li{ display:flex; gap:8px; align-items:flex-start; }
+  .tier-list li svg{ flex-shrink:0; margin-top:3px; }
+
+  /* ---------- HOW IT WORKS ---------- */
+  .steps{ display:grid; grid-template-columns:repeat(3, 1fr); gap:0; border:1px solid var(--border); border-radius:18px; overflow:hidden; }
+  @media (max-width: 860px){ .steps{ grid-template-columns:1fr; } }
+  .step{ padding:32px 28px; border-right:1px solid var(--border); }
+  .step:last-child{ border-right:none; }
+  @media (max-width: 860px){ .step{ border-right:none; border-bottom:1px solid var(--border); } .step:last-child{ border-bottom:none; } }
+  .step-tag{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--gold); margin-bottom:14px; }
+  .step-title{ font-family:'Fraunces', serif; font-size:18px; font-weight:500; margin:0 0 10px; }
+  .step-desc{ font-size:14px; color:var(--ink-muted); }
+
+  /* ---------- CONNECT MODES ---------- */
+  .modes{ display:flex; flex-direction:column; border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .mode-row{ display:grid; grid-template-columns:80px 1fr 1.4fr; gap:20px; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border); }
+  .mode-row:last-child{ border-bottom:none; }
+  .mode-row.is-soon .mode-desc{ opacity:0.7; }
+  @media (max-width: 700px){ .mode-row{ grid-template-columns:1fr; gap:6px; padding:18px 20px; } }
+  .mode-p{ font-family:'JetBrains Mono', monospace; color:var(--ink-faint); font-size:13px; }
+  .mode-name{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:15px; }
+  .mode-desc{ font-size:13.5px; color:var(--ink-muted); }
+  .mode-tag{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em;
+    padding:3px 9px; border-radius:100px; white-space:nowrap;
+  }
+  .mode-tag .dot{ width:5px; height:5px; border-radius:50%; }
+  .mode-tag.live{ color:#22c55e; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.35); }
+  .mode-tag.live .dot{ background:#22c55e; }
+  .mode-tag.soon{ color:var(--ink-faint); background:rgba(255,255,255,0.05); border:1px solid var(--border-strong); }
+
+  /* ---------- CTA ---------- */
+  .cta-section{ text-align:center; padding:100px 0; }
+  .cta-title{ font-family:'Fraunces', serif; font-weight:500; font-size:clamp(1.9rem, 4vw, 2.9rem); margin:0 0 20px; }
+  .cta-sub{ color:var(--ink-muted); max-width:480px; margin:0 auto 34px; }
+
+  /* ---------- FOOTER ---------- */
+  footer{ border-top:1px solid var(--border); padding:40px 0; }
+  .foot-row{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  .foot-brand{ display:flex; align-items:center; gap:10px; color:var(--ink-faint); font-size:13.5px; }
+  .foot-links{ display:flex; gap:24px; font-size:13.5px; color:var(--ink-faint); }
+  .foot-links a:hover{ color:var(--ink); }
+
+  .reveal{ opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in{ opacity:1; transform:translateY(0); }
+
+  @media (prefers-reduced-motion: reduce){
+    .reveal{ opacity:1; transform:none; transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand">
+      <img src="/logo.png" alt="Musyawarah" class="logo-mark" />
+      <span class="wordmark">musyawarah</span>
+    </div>
+    <nav class="navlinks">
+      <a class="nav-item" href="#fitur">Features</a>
+      <a class="nav-item" href="#verifikasi">Verification</a>
+      <a class="nav-item" href="#cara-kerja">How it works</a>
+      <a class="btn btn-primary btn-sm" href="/app/">Enter App</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- HERO -->
+  <div class="wrap hero">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> Built on Unicity Sphere Network</span>
+      <h1 class="headline">Talk, until you <em>agree.</em><br/>All recorded<span class="rule">,</span> all yours.</h1>
+      <p class="lede">Musyawarah is a space to talk where your identity is your own wallet. Post, tip, and get verified — no centralized account, no password, no middleman.</p>
+      <div class="hero-ctas">
+        <a href="/app/" class="btn btn-primary">Enter App →</a>
+        <a href="#fitur" class="btn btn-ghost">See how it works</a>
+      </div>
+      <div class="trust-row">
+        <span>No sign-up</span><span class="sep">·</span>
+        <span>No email</span><span class="sep">·</span>
+        <span>Just your wallet</span>
+      </div>
+    </div>
+
+    <div class="mock-feed">
+      <div class="mock-card">
+        <div class="mc-head">
+          <div class="mc-avatar" style="background:linear-gradient(135deg,#2a2a2a,#050505)"></div>
+          <div class="mc-name">@mike
+            <span class="badge" style="color:#2563EB" title="Verified">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 1.7 2.9-.3 1.1 2.7 2.7 1.1-.3 2.9L22.5 12l-1.7 2.4.3 2.9-2.7 1.1-1.1 2.7-2.9-.3L12 22.5l-2.4-1.7-2.9.3-1.1-2.7-2.7-1.1.3-2.9L1.5 12l1.7-2.4-.3-2.9 2.7-1.1 1.1-2.7 2.9.3z"/></svg>
+            </span>
+            <span class="mc-time">· 2j</span>
+          </div>
+        </div>
+        <p class="mc-text">Musyawarah isn't a quick vote — it's a space to listen first, then decide together. Are we all good with raising our discussion quorum to 7 people?</p>
+        <div class="mc-foot">
+          <div class="mc-actions">
+            <span>↻ 6</span>
+          </div>
+          <div class="mc-tip">+12 <span class="mono">UCT</span></div>
+        </div>
+      </div>
+
+      <div class="mock-card dim">
+        <div class="mc-head">
+          <div class="mc-avatar" style="background:linear-gradient(135deg,#3a3a3a,#0a0a0a)"></div>
+          <div class="mc-name">@juno
+            <span class="badge" style="color:#D97706" title="Verified Pro">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 1.7 2.9-.3 1.1 2.7 2.7 1.1-.3 2.9L22.5 12l-1.7 2.4.3 2.9-2.7 1.1-1.1 2.7-2.9-.3L12 22.5l-2.4-1.7-2.9.3-1.1-2.7-2.7-1.1.3-2.9L1.5 12l1.7-2.4-.3-2.9 2.7-1.1 1.1-2.7 2.9.3z"/></svg>
+            </span>
+            <span class="mc-time">· 41m</span>
+          </div>
+        </div>
+        <p class="mc-text">Quorum of 7 reached. Closing this afternoon, the result goes into the community record.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="fitur">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Identity &amp; trust</div>
+        <h2 class="sec-title">One wallet, one identity.</h2>
+        <p class="sec-desc">No sign-up form. Your wallet is your profile — complete with the balance, history, and reputation you've already built on the network.</p>
+      </div>
+      <div class="grid-3">
+        <div class="feat-card reveal">
+          <div class="feat-num">01</div>
+          <h3 class="feat-title">Wallet-based identity</h3>
+          <p class="feat-desc">Connect, and you instantly have a profile. Your wallet address becomes the signature on every post — no separate account needed.</p>
+        </div>
+        <div class="feat-card reveal">
+          <div class="feat-num">02</div>
+          <h3 class="feat-title">A balance that's always live</h3>
+          <p class="feat-desc">Total balance in USD and a per-token breakdown, updated automatically on every incoming or outgoing transfer. No refresh needed.</p>
+        </div>
+        <div class="feat-card reveal">
+          <div class="feat-num">03</div>
+          <h3 class="feat-title">Tip the author directly</h3>
+          <p class="feat-desc">Agree with an opinion? Send UCT straight to the author's wallet, recorded as part of the post itself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERIFICATION TIERS -->
+  <section id="verifikasi">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Verification</div>
+        <h2 class="sec-title">Your voice, with more weight.</h2>
+        <p class="sec-desc">Three paid verification tiers — paid in UCT, monthly or annually (save 15% annually). The higher the tier, the wider your daily quota and character limit.</p>
+      </div>
+      <div class="tiers">
+        <div class="tier-card reveal">
+          <div class="tier-name">Free</div>
+          <div class="tier-price"><div class="amt">—</div><div class="unit">no cost</div></div>
+          <ul class="tier-list">
+            <li>✓ 1× posting quota / day</li>
+            <li>✓ 100 characters per post</li>
+          </ul>
+        </div>
+        <div class="tier-card reveal">
+          <div class="tier-name"><span style="color:#2563EB">✓</span> Verified</div>
+          <div class="tier-price"><div class="amt">30</div><div class="unit">UCT / month</div><div class="yr">306 UCT / year</div></div>
+          <ul class="tier-list">
+            <li>✓ 3× posting quota / day</li>
+            <li>✓ 300 characters per post</li>
+          </ul>
+        </div>
+        <div class="tier-card hi reveal">
+          <div class="tier-name"><span style="color:#D97706">✓</span> Verified Pro</div>
+          <div class="tier-price"><div class="amt">50</div><div class="unit">UCT / month</div><div class="yr">510 UCT / year</div></div>
+          <ul class="tier-list">
+            <li>✓ 5× posting quota / day</li>
+            <li>✓ 500 characters per post</li>
+            <li>✓ Image attachments</li>
+          </ul>
+        </div>
+        <div class="tier-card reveal">
+          <div class="tier-name"><span style="color:#4F46E5">✓</span> Verified Max</div>
+          <div class="tier-price"><div class="amt">100</div><div class="unit">UCT / month</div><div class="yr">1,020 UCT / year</div></div>
+          <ul class="tier-list">
+            <li>✓ 10× posting quota / day</li>
+            <li>✓ 1,000 characters per post</li>
+            <li>✓ Image attachments</li>
+            <li>✓ Post editing</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="cara-kerja">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">How it works</div>
+        <h2 class="sec-title">From connect to joining the conversation.</h2>
+        <p class="sec-desc">Three steps, no forms.</p>
+      </div>
+      <div class="steps reveal">
+        <div class="step">
+          <div class="step-tag">01</div>
+          <h3 class="step-title">Connect wallet</h3>
+          <p class="step-desc">Your Sphere wallet is detected automatically, or connect via popup within seconds.</p>
+        </div>
+        <div class="step">
+          <div class="step-tag">02</div>
+          <h3 class="step-title">Join the deliberation</h3>
+          <p class="step-desc">Post, reply, and repost. Your quota and character limit follow your verification tier.</p>
+        </div>
+        <div class="step">
+          <div class="step-tag">03</div>
+          <h3 class="step-title">Give &amp; receive tips</h3>
+          <p class="step-desc">Reward a good opinion with UCT — straight from wallet to wallet, no middleman.</p>
+        </div>
+      </div>
+
+      <div style="height:52px"></div>
+
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Sphere Connect protocol</div>
+        <h2 class="sec-title">Connected, wherever you open Musyawarah.</h2>
+        <p class="sec-desc">Iframe connect is live today. Extension and popup fallback are coming soon, so your wallet is found no matter how you open the app.</p>
+      </div>
+      <div class="modes reveal">
+        <div class="mode-row">
+          <div class="mode-p">P1</div>
+          <div class="mode-name">Iframe <span class="mode-tag live"><span class="dot"></span>Live</span></div>
+          <div class="mode-desc">Musyawarah opens inside Sphere as a Sphere Agent — instant connect, no extra steps.</div>
+        </div>
+        <div class="mode-row is-soon">
+          <div class="mode-p">P2</div>
+          <div class="mode-name">Extension <span class="mode-tag soon">Coming soon</span></div>
+          <div class="mode-desc">The Sphere browser extension is installed and detected automatically when the page loads.</div>
+        </div>
+        <div class="mode-row is-soon">
+          <div class="mode-p">P3</div>
+          <div class="mode-name">Popup <span class="mode-tag soon">Coming soon</span></div>
+          <div class="mode-desc">Fallback: the Sphere wallet opens as a popup to approve the connection.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta" class="cta-section">
+    <div class="wrap">
+      <h2 class="cta-title reveal">Musyawarah begins<br/>the moment you connect.</h2>
+      <p class="cta-sub reveal">No account to create. Just your wallet, and your voice.</p>
+      <a href="/app/" class="btn btn-primary reveal">Launch App →</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-row">
+    <div class="foot-brand">
+      <img src="/logo.png" alt="Musyawarah" class="logo-mark" style="width:20px;height:20px;" />
+      Musyawarah © 2026
+    </div>
+    <div class="foot-links">
+      <a href="#fitur">Features</a>
+      <a href="#verifikasi">Verification</a>
+      <a href="#cara-kerja">How it works</a>
+      <a href="https://x.com/musyawarahxyz" 
+          target="_blank" 
+          rel="noreferrer"
+          className="footer-link"
+          title="X (Twitter)"
+          >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+    </a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  els.forEach(el => io.observe(el));
+</script>
+
+</body>
 </html>
