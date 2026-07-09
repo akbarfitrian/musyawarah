@@ -20,9 +20,10 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   completed: 'Completed',
   released: 'Released',
   disputed: 'Disputed',
+  cancelled: 'Cancelled',
 }
 
-const STATUS_ORDER: OrderStatus[] = ['pending', 'locked', 'completed', 'released', 'disputed']
+const STATUS_ORDER: OrderStatus[] = ['pending', 'locked', 'completed', 'released', 'disputed', 'cancelled']
 
 function ListingsTab({
   myWallet,
