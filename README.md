@@ -1,8 +1,8 @@
 # Musyawarah
 
-A decentralized social platform built on wallet-based identity, inspired by the spirit of *musyawarah* (deliberation and consensus). Musyawarah enables open, transparent, and community-driven discussions — and, since v2.1, peer-to-peer hiring — powered by the Unicity network and the Sphere Wallet.
+A decentralized social platform built on wallet-based identity, inspired by the spirit of *musyawarah* (deliberation and consensus). Musyawarah enables open, transparent, and community-driven discussions powered by the Unicity network and the Sphere Wallet.
 
-> **Status**: v2.1. Runs against Sphere's `testnet2` network.
+> **Status**: v0.2, actively evolving ("ala kadarnya" build philosophy — ship the rough version, refine later). Runs against Sphere's `testnet2` network.
 
 ---
 
@@ -13,41 +13,26 @@ A decentralized social platform built on wallet-based identity, inspired by the 
 - **Tipping System** using UCT (Unicity Token), sent directly wallet-to-wallet
 - **Repost** functionality with notifications
 - **Subscription-based Verification** (Free → Verified → Verified Pro → Verified Max), billed monthly or yearly in UCT — see **Verification Tiers** below
-- **Private Messaging** between wallets, including negotiation cards and offers (see **Marketplace** below)
+- **Private Messaging** between wallets
 - **Real-time Notifications** (follows, reposts, tips)
 - **Quests & Achievements** — a 10-step, sequentially-unlocked quest line worth 14 points total
 - **Top Tipped Leaderboard** — ranks both users and individual posts, weekly or all-time
-- **User Search & Profiles** (bio, avatar upload, follower/following counts, provider rating)
+- **User Search & Profiles** (bio, avatar upload, follower/following counts)
 - **Live Wallet Balance** in the sidebar's wallet dropdown — real portfolio value plus a per-token breakdown, refreshed on-demand and pushed live on incoming/confirmed transfers
-- **Shareable URLs** — profiles, individual posts, and DM threads each have their own address (`#/profile/…`, `#/post/…`, `#/messages/…`) that can be copied, bookmarked, or opened directly, with working browser Back/Forward
-- **Marketplace** — any post can double as a skill/agent-for-hire listing, negotiated and paid for entirely in-app, escrowed through a treasury wallet, and rated afterward — see **Marketplace** below
 - **Light & Dark Mode**, monochrome black-and-white design system
-- **Direct Monetization** through on-chain tipping, tiered subscriptions, and marketplace transactions
-
----
-
-## 🛒 Marketplace
-
-Any post can be published as a listing (title, category, price, and price mode — per-task or subscription) via the **"Post skill listing"** toggle in the composer. Listings show a price/category badge in the feed, and the Home feed has a dedicated **All / Listings** filter.
-
-**End-to-end flow:**
-
-1. **List** — a provider posts a listing; it appears in the feed and on their profile.
-2. **Negotiate** — a buyer taps **"Negotiate & Hire"**, which opens a DM with the listing auto-attached as the first message. Either side can propose a price as an offer bubble (Accept/Decline).
-3. **Order** — accepting an offer creates an order and posts an automatic status message in the same thread.
-4. **Escrow** — the buyer locks payment to a treasury wallet (`lock_escrow_order`); the buyer confirms task completion (`confirm_order_complete`); the treasury operator releases the payout to the provider (`mark_order_released`) from the **Admin** page.
-5. **Cancel** — either party can cancel an order while it's still `pending` (before anything is locked). Once locked, resolving a problem goes through manual dispute handling rather than a one-sided cancel. Re-negotiating and accepting a new offer automatically supersedes any stale pending order for the same pair.
-6. **Review** — once an order is `released`, either party can leave a star rating and comment. Ratings aggregate into a reputation badge shown on the provider's profile.
-
-All order state (`pending → locked → completed → released`, or `disputed` / `cancelled`) renders as a single status chip inline in the DM thread, with the relevant action button attached. A dedicated **Marketplace** page (`/marketplace`) offers two management tabs: **My Listings** (toggle active/inactive) and **My Orders** (grouped by status, linking back to the relevant thread).
-
-**Trust model:** escrow is custodial, not trustless — the treasury wallet (the same one used for verification payments, `VITE_VERIFICATION_TREASURY_WALLET`) is the counterparty for the lock/release steps. Release is only ever performed from the Admin page by that wallet; every other party interacts through the negotiation/order flow above.
+- **Direct Monetization** through on-chain tipping and tiered subscriptions
+- **Marketplace listings (Fase 1)** — any post can double as a skill/agent-for-hire listing (title, category, price, per-task or subscription). Listings show a badge/price card in the feed and a dedicated "Listings" tab on Home.
+- **Marketplace negotiation (Fase 2)** — clicking "Nego & Hire" on a listing opens a DM with the provider and auto-attaches a listing card as the first message. Either side can propose a price (an `offer` bubble with Accept/Decline), and accepting creates a `pending` order plus an automatic system message in the same thread. Escrow lock, order completion/release, and reviews are **not built yet** — see `musyawarah-marketplace-draft.md` for the full merge plan and remaining phases (Fase 3/4/5).
 
 ---
 
 ## 🧩 Built but not yet wired in
 
+Being upfront about the current loose ends rather than describing the aspirational version:
+
 - **`src/components/AssetsPage.tsx`** — a full "Assets" view (live CoinGecko prices for BTC/ETH/SOL/USDC/USDT, pegged $1 pricing for the custom UCT/USDU tokens, holdings cross-referenced against those prices) is fully built but **not currently reachable from the UI**. There's no `'assets'` entry in `Sidebar`'s `View` type and no route for it in `App.tsx`. The wallet-balance summary users actually see today lives in the `ConnectWallet` dropdown instead, which shows total portfolio value + a "View assets" flyout using whatever `valueUsd` the wallet itself reports (no CoinGecko call there). Wiring `AssetsPage` into navigation (sidebar tab, or a page inside the wallet dropdown) is the natural next step.
+- **No `LICENSE` file is actually included in this repo yet**, despite the license section below — add one before treating the MIT mention as binding.
+
 ---
 
 ## 🛠️ Tech Stack
@@ -101,9 +86,7 @@ VITE_SPHERE_WALLET_URL=https://sphere.unicity.network
 # connected wallet (see resolveUctCoin() in WalletContext.tsx)
 # VITE_SPHERE_UCT_COIN_ID=
 
-# Required for verification purchases AND marketplace escrow — this single
-# wallet is the destination for tier payments and the custodian for locked
-# order funds (see Marketplace above).
+# Required for verification purchases to work (destination wallet for tier payments)
 VITE_VERIFICATION_TREASURY_WALLET=@...
 ```
 
@@ -129,69 +112,56 @@ Practical implications:
 - Local development needs Sphere itself running (or pointed at) so it can load your `localhost:5173/app/` build as a custom agent.
 - `ConnectClient` requires the `network` field on every handshake (Connect protocol v2.0) — this is hardcoded to `SPHERE_NETWORKS.testnet2`, since that's the only network Sphere currently runs.
 - UCT's on-chain `coinId` isn't published anywhere stable, so `resolveUctCoin()` queries the connected wallet at runtime (`sphere_getAssets` → `sphere_getTokens` → `VITE_SPHERE_UCT_COIN_ID` env override, in that order) rather than hardcoding it.
-- **Transfer confirmations aren't EVM-style.** Sphere/Unicity doesn't always return a conventional "tx hash" from a `send` intent — depending on wallet version it may return `transferId`, `transfer.id`, `tx.id`, `tokenId`, or similar. `sendTip()` checks all of these and, if none are present, falls back to a client-generated identifier rather than throwing — throwing at that point would be reporting a successful transfer as a failure, prompting the user to (incorrectly) retry and send funds twice.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-├── index.html               # static marketing landing page (served at "/")
-├── app/index.html            # dApp entry point (served at "/app/")
+├── index.html            # static marketing landing page (served at "/")
+├── app/index.html         # dApp entry point (served at "/app/")
 ├── src/
-│   ├── components/           # UI components (pages + reusable widgets)
-│   ├── config/                # Static config (listing categories, …)
-│   ├── contexts/              # WalletContext, ProfileContext, ThemeContext
-│   ├── hooks/                 # Data hooks (posts, messages, notifications,
-│   │                          #   quests, follows, verification, orders,
-│   │                          #   reviews, routing, asset prices, leaderboards…)
-│   ├── lib/                   # Core logic: sphereConnect, verification tier
-│   │                          #   config, avatar/post-image upload, notify helpers
-│   ├── utils/                  # Small helpers (avatar colors, linkify, time,
-│   │                          #   composer focus, hash-based routing)
-│   ├── types.ts                # Shared TypeScript types for the whole data model
+│   ├── components/        # UI components (pages + reusable widgets)
+│   ├── contexts/           # WalletContext, ProfileContext, ThemeContext
+│   ├── hooks/              # Data hooks (posts, messages, notifications, quests,
+│   │                       #   follows, verification, asset prices, leaderboards…)
+│   ├── lib/                # Core logic: sphereConnect, verification tier config,
+│   │                       #   avatar/post-image upload, notify helpers
+│   ├── utils/               # Small helpers (avatar colors, linkify, time, composer focus)
+│   ├── types.ts             # Shared TypeScript types for the whole data model
 │   ├── supabaseClient.ts
 │   └── main.tsx
-└── supabase/                  # Plain numbered SQL migrations, no CLI/migrations tooling wired up
-    ├── schema.sql               # base tables + initial (permissive) RLS policies
-    ├── 002_harden_writes.sql    # SECURITY DEFINER RPCs for posts/follows/reposts/tips/verification
-    ├── 003_quests.sql           # quests + user_quest_progress tables, re-wraps the RPCs above
-    │                            #   with quest-completion triggers, adds get_quest_board()
-    ├── 004_top_tipped.sql       # get_top_tipped() — user leaderboard RPC
+└── supabase/               # Plain numbered SQL migrations, no CLI/migrations tooling wired up
+    ├── schema.sql            # base tables + initial (permissive) RLS policies
+    ├── 002_harden_writes.sql # SECURITY DEFINER RPCs for posts/follows/reposts/tips/verification
+    ├── 003_quests.sql        # quests + user_quest_progress tables, re-wraps the RPCs above
+    │                         #   with quest-completion triggers, adds get_quest_board()
+    ├── 004_top_tipped.sql    # get_top_tipped() — user leaderboard RPC
     ├── 005_top_tipped_posts.sql # get_top_tipped_posts() — trending posts RPC
-    ├── 006_marketplace_listings.sql    # listing columns on posts; create_post() redefined
-    │                                   #   again to accept them
-    ├── 007_marketplace_negotiation.sql # messages.kind/payload, `orders` table (pending
-    │                                   #   only), send_message/propose_offer/accept_offer/
-    │                                   #   decline_offer/mark_thread_read RPCs — closes the
-    │                                   #   `messages` RLS gap
-    ├── 008_marketplace_escrow_rpc.sql  # lock_escrow_order/confirm_order_complete/
-    │                                   #   mark_order_released RPCs
-    ├── 009_marketplace_reviews.sql     # `reviews` table, submit_review(),
-    │                                   #   get_provider_reputation(), set_listing_active()
-    ├── 010_fix_treasury_wallet.sql     # fixes a bad treasury-wallet constant from 008
-    └── 011_cancel_and_supersede_orders.sql # cancel_order() + auto-supersede stale
-                                            #   pending orders on re-negotiation
+    ├── 006_marketplace_listings.sql # marketplace Fase 1: listing columns on posts,
+                              #   create_post() redefined again to accept them
+    └── 007_marketplace_negotiation.sql # marketplace Fase 2: messages.kind/payload,
+                              #   `orders` table (pending only), send_message/
+                              #   propose_offer/accept_offer/decline_offer/
+                              #   mark_thread_read RPCs, closes the `messages` RLS gap
 ```
 
-Run the SQL files against your Supabase project **in numeric order**, `schema.sql` through `011` — later files redefine some functions from earlier ones (e.g. `create_post` is redefined in `003_quests.sql` to record quest progress, then again in `006_marketplace_listings.sql` to accept listing fields, carrying the quest-award logic forward).
+Run the SQL files against your Supabase project **in numeric order** (`schema.sql` → `002` → `003` → `004` → `005` → `006` → `007`) — later files redefine some functions from earlier ones (e.g. `create_post` is redefined in `003_quests.sql` to also record quest progress, then again in `006_marketplace_listings.sql` to accept listing fields — the quest-award logic from `003` is carried forward into `006`'s version).
 
 ---
 
 ## 🔐 Security Model
 
-Every write goes through **Supabase RPC functions** (`SECURITY DEFINER`):
+Most writes go through **Supabase RPC functions** (`SECURITY DEFINER`), defined in `002_harden_writes.sql`, `003_quests.sql`, `006_marketplace_listings.sql`, and `007_marketplace_negotiation.sql`:
 
-- `create_post` / `edit_post` / `delete_post` — enforce tier-based character limits, daily post quotas, image-attachment permission, edit permission (Verified Max only), and listing-field validation (title/category/price required + price mode) server-side
+- `create_post` / `edit_post` / `delete_post` — enforce tier-based character limits, daily post quotas, image-attachment permission, edit permission (Verified Max only), and (since `006`) listing-field validation (title/category/price required + price mode) server-side
 - `toggle_follow`, `toggle_repost`, `send_tip` — atomic, ownership-checked
 - `purchase_verification` — recomputes the price from `TIER_CONFIG` server-side (never trusts the client's number) and rejects a `tx_hash` that's already been used
 - `award_quest`, `record_wallet_connect`, `get_quest_board` — quest progress bookkeeping
 - `get_top_tipped`, `get_top_tipped_posts` — leaderboard reads
-- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read` — direct-message writes, listing/offer cards attached to a thread, and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient (not the proposer) and creates a `pending` row in `orders` plus an automatic `order_update` system message in the same thread.
-- `lock_escrow_order`, `confirm_order_complete`, `mark_order_released`, `cancel_order` — the escrow lifecycle. `mark_order_released` is validated server-side against the treasury wallet regardless of what the client claims; the Admin-page guard is a UX convenience, not the security boundary.
-- `submit_review`, `get_provider_reputation`, `set_listing_active` — reviews and listing management
+- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read` (since `007`) — direct-message writes, listing/offer cards attached to a thread, and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient (not the proposer) and creates a `pending` row in `orders` plus an automatic `order_update` system message in the same thread.
 
-**The `messages` table has no client-side write path anymore.** As of `007_marketplace_negotiation.sql`, direct `insert`/`update` privileges on `messages` were revoked from `anon`/`authenticated`, closing what had been the one unhardened write in the app. The `orders` and `reviews` tables introduced afterward follow the same rule from the start: reads are public, writes are RPC-only.
+**The old exception is now closed:** as of `007_marketplace_negotiation.sql`, the `messages` table is written to exclusively through the RPCs above — direct `insert`/`update` privileges have been revoked from `anon`/`authenticated`, the same pattern used for every other table. The `orders` table introduced in `007` follows the same rule from the start (read is public, writes are RPC-only).
 
 ---
 
@@ -237,7 +207,7 @@ Progress is recorded server-side inside the relevant RPC (e.g. `create_post`, `s
 The right-hand panel (`RightPanel.tsx`) shows a "Top Tipped" widget with two sub-tabs:
 
 - **Users** — wallets ranked by total UCT tips received (`get_top_tipped`)
-- **Trending** — individual posts ranked by total UCT tips received (`get_top_tipped_posts`), clicking a row jumps to that post's permalink and briefly highlights it
+- **Trending** — individual posts ranked by total UCT tips received (`get_top_tipped_posts`), clicking a row jumps to that post on the author's profile and briefly highlights it
 
 Both support a **weekly** (resets Monday 00:00 UTC) and **all-time** period toggle.
 
@@ -245,7 +215,7 @@ Both support a **weekly** (resets Monday 00:00 UTC) and **all-time** period togg
 
 ## 🎨 Design
 
-- **Monochrome, pure black & white** — light mode is black-on-white, dark mode is white-on-black; both read from CSS variables in `src/index.css` and are exact mirror images of each other. The fixed, theme-independent colors in the UI are a blue dot/badge reserved for unread-message notifications, gold for tipping/money/marketplace pricing, and red for destructive/error states.
+- **Monochrome, pure black & white** — light mode is black-on-white, dark mode is white-on-black; both read from CSS variables in `src/index.css` and are exact mirror images of each other. The only fixed, theme-independent colors in the whole UI are a blue dot/badge reserved for unread-message notifications, gold for tipping/money, and red for destructive/error states.
 - **Fraunces** (a warm, slightly characterful serif) for the wordmark and section headings, used sparingly via `font-display`
 - **Plus Jakarta Sans** for body text — chosen partly as a nod to where "musyawarah" comes from
 - **JetBrains Mono** for wallet addresses and token amounts
@@ -267,7 +237,7 @@ Contributions are welcome! Please feel free to submit a pull request.
 
 ## 📄 License
 
-MIT — see [`LICENSE`](./LICENSE).
+Intended to be MIT-licensed, but **no `LICENSE` file is committed yet** — add one before relying on this section.
 
 ---
 
@@ -275,4 +245,4 @@ MIT — see [`LICENSE`](./LICENSE).
 
 **Musyawarah** is a social platform that brings the traditional values of deliberation, respect, and consensus into the digital age using wallet-based identity and transparent on-chain interactions.
 
-Built for the Unicity & Sphere ecosystem.
+Built with ❤️ for the Unicity & Sphere ecosystem.
