@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Musyawarah - A wallet-based space for deliberation</title>
-<meta name="description" content="Musyawarah: a wallet-based social feed. Talk, agree, and tip — all recorded on-chain, with no centralized account." />
+<title>Musyawarah - A wallet-based space for deliberation, now with peer-to-peer hiring</title>
+<meta name="description" content="Musyawarah: a wallet-based social feed. Talk, agree, tip, and — new in v2.1 — hire and get hired with in-app escrow. No centralized account." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -150,6 +150,23 @@
   .feat-title{ font-family:'Fraunces', serif; font-weight:500; font-size:19px; margin:0 0 10px; }
   .feat-desc{ font-size:14.5px; color:var(--ink-muted); margin:0; }
 
+  /* ---------- MARKETPLACE ---------- */
+  .market-flow{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:24px; }
+  @media (max-width: 980px){ .market-flow{ grid-template-columns:repeat(2, 1fr); } }
+  @media (max-width: 560px){ .market-flow{ grid-template-columns:1fr; } }
+  .market-step{ border:1px solid var(--border); border-radius:16px; padding:24px 20px; background: linear-gradient(180deg, rgba(217,119,6,0.05), transparent); }
+  .market-num{ font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--gold); margin-bottom:16px; }
+  .market-title{ font-family:'Fraunces', serif; font-weight:500; font-size:18px; margin:0 0 8px; }
+  .market-desc{ font-size:14px; color:var(--ink-muted); margin:0; }
+  .market-note{ font-size:13.5px; color:var(--ink-faint); border:1px solid var(--border); border-radius:12px; padding:16px 20px; }
+
+  /* ---------- STATS STRIP ---------- */
+  .stats-strip{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  @media (max-width: 860px){ .stats-strip{ grid-template-columns:repeat(2, 1fr); } }
+  .stat-card{ border:1px solid var(--border); border-radius:16px; padding:24px 22px; }
+  .stat-num{ font-family:'Fraunces', serif; font-size:28px; font-weight:500; margin-bottom:8px; }
+  .stat-label{ font-size:13.5px; color:var(--ink-muted); }
+
   /* ---------- TIERS ---------- */
   .tiers{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
   @media (max-width: 980px){ .tiers{ grid-template-columns:repeat(2, 1fr); } }
@@ -236,6 +253,7 @@
     </div>
     <nav class="navlinks">
       <a class="nav-item" href="#Features">Features</a>
+      <a class="nav-item" href="#Marketplace">Marketplace</a>
       <a class="nav-item" href="#Verification">Verification</a>
       <a class="nav-item" href="#How it works">How it works</a>
       <a class="btn btn-primary btn-sm" href="/app/">Enter App</a>
@@ -247,12 +265,12 @@
   <!-- HERO -->
   <div class="wrap hero">
     <div>
-      <span class="eyebrow"><span class="dot"></span> Built on Unicity Sphere Network</span>
+      <span class="eyebrow"><span class="dot"></span> v2.1 — now with peer-to-peer hiring</span>
       <h1 class="headline">Talk, until you <em>agree.</em><br/>All recorded<span class="rule">,</span> all yours.</h1>
-      <p class="lede">Musyawarah is a space to talk where your identity is your own wallet. Post, tip, and get verified — no centralized account, no password, no middleman.</p>
+      <p class="lede">Musyawarah is a space to talk where your identity is your own wallet. Post, tip, get verified, and — new in v2.1 — hire and get hired directly, escrowed in-app. No centralized account, no password, no middleman.</p>
       <div class="hero-ctas">
         <a href="/app/" class="btn btn-primary">Enter App →</a>
-        <a href="#Features" class="btn btn-ghost">See how it works</a>
+        <a href="#Marketplace" class="btn btn-ghost">See what's new</a>
       </div>
       <div class="trust-row">
         <span>No sign-up</span><span class="sep">·</span>
@@ -319,6 +337,70 @@
           <div class="feat-num">03</div>
           <h3 class="feat-title">Tip the author directly</h3>
           <p class="feat-desc">Agree with an opinion? Send UCT straight to the author's wallet, recorded as part of the post itself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MARKETPLACE -->
+  <section id="Marketplace">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">New in v2.1</div>
+        <h2 class="sec-title">Any post can become a hire.</h2>
+        <p class="sec-desc">Turn a post into a listing, negotiate the price by DM, and settle the whole job — payment included — without leaving the app.</p>
+      </div>
+      <div class="market-flow reveal">
+        <div class="market-step">
+          <div class="market-num">01</div>
+          <h3 class="market-title">List</h3>
+          <p class="market-desc">Toggle "Post skill listing" on any post — title, category, price, per-task or subscription. It shows up in the feed with a price badge.</p>
+        </div>
+        <div class="market-step">
+          <div class="market-num">02</div>
+          <h3 class="market-title">Negotiate</h3>
+          <p class="market-desc">"Negotiate &amp; Hire" opens a DM with the listing attached. Either side proposes a price as an offer card — accept or decline.</p>
+        </div>
+        <div class="market-step">
+          <div class="market-num">03</div>
+          <h3 class="market-title">Escrow</h3>
+          <p class="market-desc">Buyer locks payment to a treasury wallet, confirms the work is done, and the provider gets paid out — every step logged as a status chip in the thread.</p>
+        </div>
+        <div class="market-step">
+          <div class="market-num">04</div>
+          <h3 class="market-title">Review</h3>
+          <p class="market-desc">Once released, both sides leave a star rating. Ratings roll up into a reputation badge on the provider's profile.</p>
+        </div>
+      </div>
+      <div class="market-note reveal">
+        <span class="mono">Trust model:</span> escrow is custodial, not trustless — the same treasury wallet used for verification payments holds locked funds until release.
+      </div>
+    </div>
+  </section>
+
+  <!-- ALSO NEW -->
+  <section id="Also-new">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="sec-eyebrow">Also new</div>
+        <h2 class="sec-title">More reasons to stick around.</h2>
+      </div>
+      <div class="stats-strip reveal">
+        <div class="stat-card">
+          <div class="stat-num">10</div>
+          <div class="stat-label">Sequential quests, 14 points total — from your first post to your first 10 tips received.</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">2×</div>
+          <div class="stat-label">Top Tipped leaderboards — users and posts, weekly or all-time.</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">#/</div>
+          <div class="stat-label">Shareable links for every profile, post, and DM thread — bookmark or send directly.</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">Live</div>
+          <div class="stat-label">Wallet balance in the sidebar, with a per-token breakdown that updates on incoming transfers.</div>
         </div>
       </div>
     </div>
@@ -402,24 +484,14 @@
 
       <div class="sec-head reveal">
         <div class="sec-eyebrow">Sphere Connect protocol</div>
-        <h2 class="sec-title">Connected, wherever you open Musyawarah.</h2>
-        <p class="sec-desc">Iframe connect is live today. Extension and popup fallback are coming soon, so your wallet is found no matter how you open the app.</p>
+        <h2 class="sec-title">Runs inside Sphere, by design.</h2>
+        <p class="sec-desc">Musyawarah is a Sphere Agent — it loads inside Sphere's own iframe and auto-connects to your wallet on open. No extension, no popup, no separate approval step.</p>
       </div>
       <div class="modes reveal">
         <div class="mode-row">
           <div class="mode-p">P1</div>
           <div class="mode-name">Iframe <span class="mode-tag live"><span class="dot"></span>Live</span></div>
-          <div class="mode-desc">Musyawarah opens inside Sphere as a Sphere Agent — instant connect, no extra steps.</div>
-        </div>
-        <div class="mode-row is-soon">
-          <div class="mode-p">P2</div>
-          <div class="mode-name">Extension <span class="mode-tag soon">Coming soon</span></div>
-          <div class="mode-desc">The Sphere browser extension is installed and detected automatically when the page loads.</div>
-        </div>
-        <div class="mode-row is-soon">
-          <div class="mode-p">P3</div>
-          <div class="mode-name">Popup <span class="mode-tag soon">Coming soon</span></div>
-          <div class="mode-desc">Fallback: the Sphere wallet opens as a popup to approve the connection.</div>
+          <div class="mode-desc">Musyawarah opens inside Sphere as a Sphere Agent — instant, silent connect, no extra steps.</div>
         </div>
       </div>
     </div>
@@ -443,6 +515,7 @@
     </div>
     <div class="foot-links">
       <a href="#Features">Features</a>
+      <a href="#Marketplace">Marketplace</a>
       <a href="#Verification">Verification</a>
       <a href="#How it works">How it works</a>
       <a href="https://x.com/musyawarahxyz" 
