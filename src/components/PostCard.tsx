@@ -11,19 +11,33 @@ import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
 import { canEditPost, maxPostChars } from '../lib/verification'
 import { supabase } from '../supabaseClient'
-import { TrashIcon, RepostIcon, PencilIcon, XIcon } from './icons'
+import { postPath } from '../utils/routes'
+import { CopyLinkButton } from './CopyLinkButton'
+import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, TagIcon, MessageIcon } from './icons'
 
 export function PostCard({
   post,
   onTipped,
   onDeleted,
   onVisitProfile,
+  onVisitPost,
+  onMessageProvider,
   highlighted,
 }: {
   post: Post
   onTipped: () => void
   onDeleted: () => void
   onVisitProfile?: (walletAddress: string) => void
+  /** Dipanggil pas timestamp post diklik -- buka halaman permalink-nya
+   * sendiri (#/post/:id), sama kayak klik tanggal di tweet X/Twitter. */
+  onVisitPost?: (postId: string) => void
+  /** Dipanggil pas tombol "Nego & Hire" di kartu listing diklik -- buka DM
+   * ke provider-nya. Fase 2: kalau `postId` diisi, App.tsx otomatis ngirim
+   * kartu listing (`listing_ref`) sebagai pesan pertama sebelum pindah ke
+   * thread-nya (lihat draft §1b/§4). Parameter kedua optional biar tombol
+   * "Message" biasa di ProfilePage (yang gak tau konteks listing) tetap
+   * kompatibel. */
+  onMessageProvider?: (walletAddress: string, postId?: string) => void
   /** True kalau post ini yang harus di-scroll-ke dan disorot -- dipakai
    * pas masuk dari link "Trending" di RightPanel.tsx. */
   highlighted?: boolean
@@ -176,11 +190,21 @@ export function PostCard({
             </button>
             <VerifiedBadge tier={post.author_verification_tier} />
             <span className="text-ink-faint">·</span>
-            <span className="shrink-0 text-[13px] text-ink-muted">{timeAgo(post.created_at)}</span>
+            {onVisitPost ? (
+              <button
+                type="button"
+                className="shrink-0 text-[13px] text-ink-muted transition-colors hover:text-ink hover:underline"
+                onClick={() => onVisitPost(post.id)}
+              >
+                {timeAgo(post.created_at)}
+              </button>
+            ) : (
+              <span className="shrink-0 text-[13px] text-ink-muted">{timeAgo(post.created_at)}</span>
+            )}
             {post.edited_at && <span className="shrink-0 text-[12px] text-ink-faint">· edited</span>}
-            {(canEdit || isOwnPost) && (
-              <span className="ml-auto flex items-center gap-1">
-                {canEdit && !isEditing && (
+            <span className="ml-auto flex items-center gap-1">
+              <CopyLinkButton path={postPath(post.id)} label="Copy link to post" className="h-8 w-8" />
+              {canEdit && !isEditing && (
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
                     onClick={startEdit}
@@ -203,8 +227,36 @@ export function PostCard({
                   </button>
                 )}
               </span>
-            )}
           </div>
+
+          {post.is_listing && !isEditing && (
+            <div className="mt-1 rounded-xl border border-gold/25 bg-gold/5 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
+                  <BriefcaseIcon size={14} />
+                  {post.listing_title}
+                </span>
+                <span className="font-mono text-[13px] font-semibold tabular-nums text-gold">
+                  {post.listing_price_amount} {post.listing_coin_symbol ?? 'UCT'}
+                  <span className="font-sans font-normal text-ink-faint">
+                    {' '}
+                    / {post.listing_price_mode === 'subscription' ? 'month' : 'task'}
+                  </span>
+                </span>
+              </div>
+              {post.listing_category && (
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-muted">
+                  <TagIcon size={11} />
+                  {post.listing_category}
+                </span>
+              )}
+              {!post.listing_active && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-faint">
+                  Inactive
+                </span>
+              )}
+            </div>
+          )}
 
           {isEditing ? (
             <div className="mt-1">
@@ -286,7 +338,11 @@ export function PostCard({
             </div>
           )}
 
-          <div className="mt-2.5 flex max-w-xs items-center gap-6">
+          <div
+            className={`mt-2.5 flex items-center gap-6 ${
+              post.is_listing ? 'max-w-md' : 'max-w-xs'
+            }`}
+          >
             <RepostButton
               postId={post.id}
               postAuthorWallet={post.author_wallet}
@@ -301,6 +357,16 @@ export function PostCard({
               tipTotal={post.tip_total ?? 0}
               onTipped={onTipped}
             />
+            {post.is_listing && !isOwnPost && post.listing_active && onMessageProvider && (
+              <button
+                type="button"
+                className="ml-auto flex items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-amber-400 px-3 py-1.5 text-[13px] font-semibold text-base transition-transform duration-150 hover:scale-[1.03] active:scale-95"
+                onClick={() => onMessageProvider(post.author_wallet, post.id)}
+              >
+                <MessageIcon size={14} />
+                Negotiate & Hire
+              </button>
+            )}
           </div>
         </div>
       </article>

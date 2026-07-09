@@ -4,6 +4,18 @@ import { useWallet } from '../contexts/WalletContext'
 import type { VerificationTier } from '../lib/verification'
 import type { Post, Repost, Tip } from '../types'
 
+/** Provider tutup/buka listing tanpa hapus post-nya (Fase 4, `MarketplacePage`
+ * sub-tab "My Listings") -- panggil `set_listing_active` RPC, `posts.update`
+ * langsung sudah dicabut haknya dari client sejak 002_harden_writes.sql. */
+export async function setListingActive(wallet: string, postId: string, active: boolean) {
+  const { error } = await supabase.rpc('set_listing_active', {
+    p_wallet: wallet,
+    p_post_id: postId,
+    p_active: active,
+  })
+  if (error) throw error
+}
+
 export function usePosts(authorWallet?: string) {
   const { walletAddress } = useWallet()
   const [posts, setPosts] = useState<Post[]>([])

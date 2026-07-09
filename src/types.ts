@@ -21,6 +21,8 @@ export interface Verification {
   updated_at: string
 }
 
+export type ListingPriceMode = 'task' | 'subscription'
+
 export interface Post {
   id: string
   author_wallet: string
@@ -30,6 +32,17 @@ export interface Post {
   /** Keisi (ISO timestamp) kalau post ini pernah diedit sesudah dikirim.
    * Cuma tier Verified Max yang boleh ngedit -- lihat lib/verification.ts. */
   edited_at?: string | null
+  // --- Marketplace (draft §1a) — Fase 1: listing sebagai varian post ---
+  /** True kalau post ini juga adalah listing jasa/skill (marketplace). */
+  is_listing: boolean
+  listing_title: string | null
+  listing_category: string | null
+  listing_price_amount: number | null
+  listing_price_mode: ListingPriceMode | null
+  listing_coin_symbol: string | null
+  /** Provider bisa nonaktifin listing tanpa hapus post-nya (fitur Fase 4,
+   * kolomnya udah ada dari sekarang). */
+  listing_active: boolean
   // computed client-side, bukan kolom asli:
   tip_total?: number
   author_avatar_url?: string | null
@@ -61,6 +74,36 @@ export interface Repost {
   created_at: string
 }
 
+// --- Marketplace nego di DM (draft §1b/§2) — Fase 2 ---
+export type MessageKind = 'text' | 'listing_ref' | 'offer' | 'order_update'
+
+export interface ListingRefPayload {
+  post_id: string
+}
+
+export type OfferStatus = 'pending' | 'accepted' | 'declined'
+
+export interface OfferPayload {
+  post_id: string
+  amount: number
+  coin_symbol: string
+  status: OfferStatus
+  /** Keisi begitu offer di-accept -- id baris `orders` yang otomatis dibuat. */
+  order_id?: string
+}
+
+/** Fase 2: cuma pernah 'pending' (dibuat pas accept_offer). Status lain
+ * ('locked' | 'completed' | 'released' | 'disputed') dipakai mulai Fase 3.
+ * 'cancelled' ditambah di 011_cancel_and_supersede_orders.sql -- order
+ * 'pending' yang dibatalkan manual (cancel_order) atau otomatis di-supersede
+ * pas offer baru buat pasangan post+buyer+provider yang sama di-accept. */
+export type OrderStatus = 'pending' | 'locked' | 'completed' | 'released' | 'disputed' | 'cancelled'
+
+export interface OrderUpdatePayload {
+  order_id: string
+  status: OrderStatus
+}
+
 export interface Message {
   id: string
   sender_wallet: string
@@ -68,6 +111,59 @@ export interface Message {
   content: string
   read: boolean
   created_at: string
+  kind: MessageKind
+  payload: ListingRefPayload | OfferPayload | OrderUpdatePayload | null
+}
+
+// --- Marketplace orders (draft §1c) — baris di sini cuma pernah berstatus
+// 'pending' sampai Fase 3 (lock_escrow_order/dst) ditulis. ---
+export interface Order {
+  id: string
+  post_id: string
+  buyer_wallet: string
+  provider_wallet: string
+  amount: number
+  coin_symbol: string
+  escrow_wallet: string | null
+  lock_tx_hash: string | null
+  status: OrderStatus
+  created_at: string
+  locked_at: string | null
+  completed_at: string | null
+  released_at: string | null
+  cancelled_at: string | null
+}
+
+// --- Marketplace reviews (draft §1d) — Fase 4 ---
+export interface Review {
+  id: string
+  order_id: string
+  reviewer_wallet: string
+  reviewee_wallet: string
+  rating: number
+  comment: string | null
+  created_at: string
+}
+
+/** Hasil `get_provider_reputation` RPC -- rata-rata rating + jumlah review
+ * buat 1 wallet. `review_count === 0` berarti belum pernah direview. */
+export interface ProviderReputation {
+  avg_rating: number
+  review_count: number
+}
+
+/** Ringkasan listing yang dibutuhin buat nampilin kartu `listing_ref`/`offer`
+ * di dalam bubble chat -- dikumpulin batch di useThread.ts, bukan kolom asli
+ * tabel `messages` (payload cuma nyimpen `post_id`). */
+export interface ListingSnapshot {
+  id: string
+  listing_title: string | null
+  listing_category: string | null
+  listing_price_amount: number | null
+  listing_price_mode: ListingPriceMode | null
+  listing_coin_symbol: string | null
+  listing_active: boolean
+  author_wallet: string
 }
 
 export interface Conversation {

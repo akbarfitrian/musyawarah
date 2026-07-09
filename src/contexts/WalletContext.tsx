@@ -312,7 +312,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const sendTip = useCallback(async (toWallet: string, amount: number) => {
     const client = clientRef.current
-    if (!client || !walletAddress) throw new Error('Wallet belum connect')
+    if (!client || !walletAddress) throw new Error('Wallet not connected')
 
     if (!uctCoinRef.current) {
       uctCoinRef.current = await resolveUctCoin(client)
@@ -323,9 +323,57 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       to: formatRecipient(toWallet),
       amount: toBaseUnits(amount, decimals),
       coinId,
-    })) as { txHash?: string; hash?: string; tx?: { hash?: string } }
+    })) as {
+      txHash?: string
+      hash?: string
+      tx?: { hash?: string; id?: string }
+      transferId?: string
+      transfer?: { id?: string; transferId?: string }
+      id?: string
+      tokenId?: string
+      token?: { id?: string }
+    }
 
-    const txHash = result?.txHash ?? result?.hash ?? result?.tx?.hash ?? null
+    // Sphere/Unicity BUKAN chain gaya EVM -- gak ada "tx hash"/block explorer
+    // buat intent `send`. Yang beneran dibalikin (dikonfirmasi dari live
+    // wallet, 2026-07-09) adalah "Transfer ID" (UUID, keliatan di panel
+    // Transaction History wallet), field-nya bisa transferId/transfer.id/id/
+    // tx.id tergantung versi wallet -- txHash/hash/tx.hash di atas TETAP
+    // dicek duluan buat jaga-jaga kalau versi wallet lain beneran ngasih
+    // hash, tapi jangan diasumsikan bakal ada.
+    const identifier =
+      result?.txHash ??
+      result?.hash ??
+      result?.tx?.hash ??
+      result?.transferId ??
+      result?.transfer?.transferId ??
+      result?.transfer?.id ??
+      result?.tx?.id ??
+      result?.id ??
+      result?.tokenId ??
+      result?.token?.id ??
+      null
+
+    // PENTING: pada titik ini `client.intent('send', ...)` udah RESOLVE --
+    // dananya udah beneran kekirim dari wallet. Kalau `identifier` tetap
+    // null (wallet ngasih bentuk respons yang belum pernah kelihatan sama
+    // sekali), JANGAN throw di sini -- itu bakal bikin caller (handleLockEscrow)
+    // nyuruh user klik "coba lagi", padahal transfer PERTAMA udah sukses, jadi
+    // user bakal ngirim dana KEDUA KALINYA buat order yang sama (lihat bug
+    // laporan 2026-07-09: dua baris -5 UCT buat 1 order). Fallback ke ID
+    // client-side aja -- `lock_tx_hash` di DB cuma catatan audit, bukan bukti
+    // terverifikasi on-chain (lihat draft §6: trusted custodian, bukan escrow
+    // trustless), jadi ID apa pun yang nunjukkin "attempt ini udah jalan"
+    // cukup buat nyatet lock-nya tanpa ngeblok user.
+    const txHash =
+      identifier ??
+      `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    if (!identifier) {
+      console.warn(
+        '[MUSYAWARAH] sendTip: wallet gak ngasih identifier (txHash/transferId/dst) yang dikenali di respons intent send -- pakai fallback client-side. Cek bentuk respons asli di bawah ini, mungkin perlu nambah field baru ke daftar di atas.',
+        result
+      )
+    }
     // Nggak semua wallet ngirim event transfer buat sisi pengirim sendiri
     // (biasanya cuma sisi penerima) — refresh manual di sini biar saldo
     // langsung ke-update abis kirim tip, nggak nunggu event yang mungkin
@@ -359,6 +407,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
 export function useWallet() {
   const ctx = useContext(WalletContext)
-  if (!ctx) throw new Error('useWallet harus dipakai di dalam <WalletProvider>')
+  if (!ctx) throw new Error('useWallet must be used inside <WalletProvider>')
   return ctx
 }

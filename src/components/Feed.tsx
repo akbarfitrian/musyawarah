@@ -8,6 +8,8 @@ export function Feed({
   onTipped,
   onDeleted,
   onVisitProfile,
+  onVisitPost,
+  onMessageProvider,
   emptyMessage,
   highlightPostId,
 }: {
@@ -17,6 +19,9 @@ export function Feed({
   onTipped: () => void
   onDeleted: () => void
   onVisitProfile?: (walletAddress: string) => void
+  onVisitPost?: (postId: string) => void
+  /** Diteruskan ke PostCard -- tombol "Nego & Hire" di kartu listing. */
+  onMessageProvider?: (walletAddress: string) => void
   emptyMessage?: string
   /** post_id yang harus di-scroll-ke dan disorot (mis. abis klik "Trending"
    * di RightPanel.tsx). */
@@ -55,6 +60,8 @@ export function Feed({
           onTipped={onTipped}
           onDeleted={onDeleted}
           onVisitProfile={onVisitProfile}
+          onVisitPost={onVisitPost}
+          onMessageProvider={onMessageProvider}
           highlighted={post.id === highlightPostId}
         />
       ))}

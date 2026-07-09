@@ -1,19 +1,26 @@
-import { LogoMark, BellIcon, VerifiedNavIcon, HomeIcon, MessageIcon, SettingsIcon, UserIcon, TrophyIcon } from './icons'
+import { LogoMark, BellIcon, VerifiedNavIcon, HomeIcon, MessageIcon, SettingsIcon, UserIcon, TrophyIcon, BriefcaseIcon, LockIcon } from './icons'
 import { ConnectWallet } from './ConnectWallet'
 import { focusComposer } from '../utils/composer'
 
-export type View = 'home' | 'profile' | 'messages' | 'verify' | 'settings' | 'notifications' | 'quests'
+export type View = 'home' | 'profile' | 'messages' | 'verify' | 'settings' | 'notifications' | 'quests' | 'marketplace' | 'admin'
 
 export function Sidebar({
   view,
   onNavigate,
   unreadMessages = 0,
   unreadNotifications = 0,
+  isTreasury = false,
 }: {
-  view: View
+  /** 'post' dimasukin buat halaman permalink post (#/post/:id) -- nggak ada
+   * item nav yang aktif buat state ini. */
+  view: View | 'post'
   onNavigate: (view: View) => void
   unreadMessages?: number
   unreadNotifications?: number
+  /** True kalau wallet yang connect == TREASURY_WALLET -- nampilin nav item
+   * "Admin" (011.1). Wallet lain nggak bakal liat link ini sama sekali,
+   * proteksi beneran tetap di AdminPage.tsx + validasi RPC di server. */
+  isTreasury?: boolean
 }) {
   return (
     <aside className="sticky top-0 hidden h-screen flex-col items-start gap-1 border-r border-surface-border px-3 py-4 md:flex">
@@ -78,6 +85,17 @@ export function Sidebar({
         </button>
         <button
           className={`group flex w-auto items-center gap-3 rounded-full px-3 py-3 text-[17px] font-bold transition-colors lg:w-full ${
+            view === 'marketplace'
+              ? 'text-ink'
+              : 'text-ink-muted hover:bg-surface hover:text-ink'
+          }`}
+          onClick={() => onNavigate('marketplace')}
+        >
+          <BriefcaseIcon size={22} />
+          <span>Marketplace</span>
+        </button>
+        <button
+          className={`group flex w-auto items-center gap-3 rounded-full px-3 py-3 text-[17px] font-bold transition-colors lg:w-full ${
             view === 'verify'
               ? 'text-ink'
               : 'text-ink-muted hover:bg-surface hover:text-ink'
@@ -111,6 +129,19 @@ export function Sidebar({
           <SettingsIcon size={22} filled={view === 'settings'} />
           <span>Settings</span>
         </button>
+        {isTreasury && (
+          <button
+            className={`group flex w-auto items-center gap-3 rounded-full px-3 py-3 text-[17px] font-bold transition-colors lg:w-full ${
+              view === 'admin'
+                ? 'text-ink'
+                : 'text-ink-muted hover:bg-surface hover:text-ink'
+            }`}
+            onClick={() => onNavigate('admin')}
+          >
+            <LockIcon size={20} />
+            <span>Admin</span>
+          </button>
+        )}
       </nav>
 
       <button

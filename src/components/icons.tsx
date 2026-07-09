@@ -553,3 +553,81 @@ export function TrophyIcon({ size = 22, filled = false }: IconProps) {
     </svg>
   )
 }
+
+export function LinkIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M9.5 14.5l5-5M8 9.5l-2 2a3.5 3.5 0 004.9 4.9l2-2M16 14.5l2-2a3.5 3.5 0 00-4.9-4.9l-2 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export function CheckIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M5 13l4.5 4.5L19 8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Ikon tas/etalase -- dipakai buat badge listing marketplace & toggle
+ * "Post skill listing" di composer. */
+export function BriefcaseIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3.5" y="7.5" width="17" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M8.5 7.5V6a2 2 0 012-2h3a2 2 0 012 2v1.5M3.5 12.5h17"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** Ikon gembok -- dipakai buat tombol "Lock escrow" (Fase 3.2). */
+export function LockIcon({ size = 14 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="11" width="14" height="9.5" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 11V7.5a4 4 0 018 0V11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Ikon bintang -- dipakai buat rating provider (Fase 4). `filled` nentuin
+ * solid (rating aktif/dipilih) atau outline (rating kosong). */
+export function StarIcon({ size = 14, filled = false }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'}>
+      <path
+        d="M12 3.5l2.5 5.6 6 .6-4.5 4 1.3 5.9L12 16.9l-5.3 2.7 1.3-5.9-4.5-4 6-.6z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export function TagIcon({ size = 14 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M11.3 4H6a2 2 0 00-2 2v5.3c0 .5.2 1 .6 1.4l8.7 8.7c.8.8 2 .8 2.8 0l5.3-5.3c.8-.8.8-2 0-2.8l-8.7-8.7c-.4-.4-.9-.6-1.4-.6z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="9" r="1.4" fill="currentColor" />
+    </svg>
+  )
+}

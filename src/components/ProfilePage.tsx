@@ -5,13 +5,17 @@ import { useProfile } from '../contexts/ProfileContext'
 import { useViewedProfile } from '../hooks/useViewedProfile'
 import { useFollow } from '../hooks/useFollow'
 import { useVerification } from '../hooks/useVerification'
+import { useProviderReputation } from '../hooks/useReviews'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { formatBytes, MAX_AVATAR_BYTES, uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
+import { profilePath } from '../utils/routes'
 import { CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
 import { Feed } from './Feed'
 import { FollowButton } from './FollowButton'
 import { VerifiedBadge } from './VerifiedBadge'
+import { RatingStars } from './RatingStars'
+import { CopyLinkButton } from './CopyLinkButton'
 
 const BIO_MAX_LEN = 160
 
@@ -21,6 +25,7 @@ export function ProfilePage({
   onBack,
   onMessage,
   onGetVerified,
+  onVisitPost,
   highlightPostId,
 }: {
   /** Kalau diisi, halaman ini nampilin profil wallet lain (read-only). Kalau
@@ -32,6 +37,9 @@ export function ProfilePage({
   onMessage?: (walletAddress: string) => void
   /** Dipanggil pas tombol "Get Verified" di profil sendiri diklik. */
   onGetVerified?: () => void
+  /** Dipanggil pas timestamp salah satu post di profil ini diklik -- buka
+   * halaman permalink post itu. */
+  onVisitPost?: (postId: string) => void
   /** post_id yang harus di-scroll-ke dan disorot di dalam feed profil ini
    * (mis. abis klik "Trending" di RightPanel.tsx). */
   highlightPostId?: string | null
@@ -47,6 +55,7 @@ export function ProfilePage({
     useViewedProfile(isOwnProfile ? null : targetWallet ?? null)
   const { isFollowing, followerCount, followingCount, loading: followLoading, busy: followBusy, toggleFollow } =
     useFollow(targetWallet ?? null)
+  const { reputation } = useProviderReputation(targetWallet ?? null)
   const profile = isOwnProfile ? myProfile : viewedProfile
   const verificationTier = isOwnProfile ? myVerificationTier : viewedVerificationTier
 
@@ -203,7 +212,18 @@ export function ProfilePage({
           <span className="flex items-center gap-1.5 truncate font-mono text-[16px] font-semibold text-ink">
             {shortenAddress(targetWallet)}
             <VerifiedBadge tier={verificationTier} size={15} />
+            <CopyLinkButton path={profilePath(targetWallet)} label="Copy link to profile" className="h-7 w-7" />
           </span>
+
+          {reputation && reputation.review_count > 0 && (
+            <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink-muted">
+              <RatingStars value={reputation.avg_rating} size={12} />
+              <span className="font-medium text-ink">{reputation.avg_rating.toFixed(1)}</span>
+              <span>
+                ({reputation.review_count} review{reputation.review_count === 1 ? '' : 's'})
+              </span>
+            </span>
+          )}
 
           {isOwnProfile && editingBio ? (
             <div className="mt-2">
@@ -325,6 +345,8 @@ export function ProfilePage({
           error={error}
           onTipped={refreshAll}
           onDeleted={refreshAll}
+          onVisitPost={onVisitPost}
+          onMessageProvider={onMessage}
           highlightPostId={highlightPostId}
           emptyMessage={
             isOwnProfile

@@ -1,95 +1,140 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { WalletProvider } from './contexts/WalletContext'
+import { WalletProvider, useWallet } from './contexts/WalletContext'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { usePosts } from './hooks/usePosts'
-import { useConversations } from './hooks/useMessages'
+import { useConversations, sendListingRefMessage } from './hooks/useMessages'
 import { useNotifications } from './hooks/useNotifications'
+import { useRouter } from './hooks/useRouter'
+import { TREASURY_WALLET } from './hooks/useOrders'
+import {
+  adminPath,
+  homePath,
+  marketplacePath,
+  messagesPath,
+  notificationsPath,
+  postPath,
+  profilePath,
+  questsPath,
+  settingsPath,
+  verifyPath,
+} from './utils/routes'
 import { Sidebar, type View } from './components/Sidebar'
 import { RightPanel } from './components/RightPanel'
 import { PostComposer } from './components/PostComposer'
 import { Feed } from './components/Feed'
 import { ProfilePage } from './components/ProfilePage'
+import { PostPage } from './components/PostPage'
 import { GetVerifiedPage } from './components/GetVerifiedPage'
 import { QuestsPage } from './components/QuestsPage'
 import { MessagesPage } from './components/MessagesPage'
+import { MarketplacePage } from './components/MarketplacePage'
 import { NotificationsPage } from './components/NotificationsPage'
 import { SettingsPage } from './components/SettingsPage'
+import { AdminPage } from './components/AdminPage'
 import { ConnectWallet } from './components/ConnectWallet'
-import { BellIcon, FeatherIcon, LogoMark, SettingsIcon } from './components/icons'
+import { BellIcon, BriefcaseIcon, FeatherIcon, LogoMark, SettingsIcon } from './components/icons'
 import { focusComposer } from './utils/composer'
 import { shortenAddress } from './utils/avatar'
 import './index.css'
 
 function AppShell() {
+  const { walletAddress } = useWallet()
   const { posts, loading, error, refresh } = usePosts()
   const { totalUnread } = useConversations()
   const { unreadCount: unreadNotifications } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
-  const [view, setView] = useState<View>('home')
-  // Wallet profil orang lain yang lagi dikunjungi. null = lihat profil sendiri.
-  const [viewedWallet, setViewedWallet] = useState<string | null>(null)
-  // Wallet yang thread-nya harus langsung kebuka pas masuk ke tab Messages
-  // (mis. abis klik "Message" di profil orang lain).
-  const [dmTarget, setDmTarget] = useState<string | null>(null)
-  // post_id yang harus di-scroll-ke dan disorot di halaman profil (abis
-  // klik salah satu row "Trending" di RightPanel.tsx).
-  const [highlightPostId, setHighlightPostId] = useState<string | null>(null)
+  const [feedFilter, setFeedFilter] = useState<'all' | 'listings'>('all')
+  const { route, navigate } = useRouter()
+  const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
+
+  // Setiap profil, post, dan thread DM sekarang punya alamat URL sendiri
+  // (#/profile/0x123, #/post/abc, #/messages/0x456) -- bisa di-copy/share/
+  // bookmark, dan tombol Back/Forward browser jalan normal. Lihat
+  // src/utils/routes.ts & src/hooks/useRouter.ts.
 
   function visitProfile(walletAddress: string) {
-    setViewedWallet(walletAddress)
-    setView('profile')
+    navigate(profilePath(walletAddress))
   }
 
-  function visitPost(walletAddress: string, postId: string) {
-    setViewedWallet(walletAddress)
-    setView('profile')
-    setHighlightPostId(postId)
+  function visitPost(postId: string) {
+    navigate(postPath(postId))
   }
-
-  // Sorotan cuma nempel sebentar (samaan sama durasi animate-highlight-flash
-  // di tailwind.config.js) -- abis itu dilepas lagi biar nggak nempel
-  // permanen kalau user pindah-pindah tab terus balik lagi ke profil ini.
-  useEffect(() => {
-    if (!highlightPostId) return
-    const timer = setTimeout(() => setHighlightPostId(null), 2600)
-    return () => clearTimeout(timer)
-  }, [highlightPostId])
 
   function goToOwnProfile() {
-    setViewedWallet(null)
-    setView('profile')
+    navigate(profilePath())
   }
 
-  function messageWallet(walletAddress: string) {
-    setDmTarget(walletAddress)
-    setView('messages')
+  // Fase 2 (draft §1b): kalau dipanggil dari tombol "Nego & Hire" (postId
+  // keisi), kirim kartu listing sebagai pesan pertama SEBELUM pindah ke
+  // thread-nya -- diawait biar udah nongol pas ThreadView pertama kali
+  // ngambil pesan. Kalau gagal (mis. sudah pernah dikirim / listing gak
+  // valid), tetap lanjut buka thread-nya -- ini cuma best-effort, bukan
+  // gerbang wajib buat ngobrol sama provider-nya.
+  async function messageWallet(walletAddress_: string, postId?: string) {
+    if (postId && walletAddress) {
+      try {
+        await sendListingRefMessage(walletAddress, walletAddress_, postId)
+      } catch (e) {
+        console.error('[MUSYAWARAH] Gagal ngirim kartu listing otomatis:', e)
+      }
+    }
+    navigate(messagesPath(walletAddress_))
   }
 
+  function goHome() {
+    navigate(homePath())
+  }
+
+  // Sidebar/mobile nav punya set nama beda dari Route['view'] (mis. gaada
+  // "post"), jadi di-map dulu di sini biar tipe-nya nyambung.
+  const sidebarView: View | 'post' = route.view
   const headerTitle =
-    view === 'home'
+    route.view === 'home'
       ? 'Home'
-      : view === 'notifications'
+      : route.view === 'notifications'
         ? 'Notifications'
-        : view === 'messages'
+        : route.view === 'messages'
           ? 'Messages'
-          : view === 'verify'
+          : route.view === 'verify'
             ? 'Get Verified'
-            : view === 'quests'
+            : route.view === 'quests'
               ? 'Quests'
-              : view === 'settings'
+              : route.view === 'settings'
                 ? 'Settings'
-                : viewedWallet
-                  ? shortenAddress(viewedWallet)
-                  : 'Profile'
+                : route.view === 'admin'
+                  ? 'Admin'
+                  : route.view === 'marketplace'
+                    ? 'Marketplace'
+                    : route.view === 'post'
+                      ? 'Post'
+                      : route.wallet
+                        ? shortenAddress(route.wallet)
+                        : 'Profile'
+
+  function handleSidebarNavigate(v: View) {
+    if (v === 'profile') {
+      goToOwnProfile()
+      return
+    }
+    if (v === 'home') navigate(homePath())
+    else if (v === 'notifications') navigate(notificationsPath())
+    else if (v === 'messages') navigate(messagesPath())
+    else if (v === 'verify') navigate(verifyPath())
+    else if (v === 'quests') navigate(questsPath())
+    else if (v === 'settings') navigate(settingsPath())
+    else if (v === 'marketplace') navigate(marketplacePath())
+    else if (v === 'admin') navigate(adminPath())
+  }
 
   return (
     <div className="mx-auto grid min-h-screen max-w-[1280px] grid-cols-1 items-start md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[275px_minmax(0,600px)_350px]">
       <Sidebar
-        view={view}
-        onNavigate={(v) => (v === 'profile' ? goToOwnProfile() : setView(v))}
+        view={sidebarView}
+        onNavigate={handleSidebarNavigate}
         unreadMessages={totalUnread}
         unreadNotifications={unreadNotifications}
+        isTreasury={isTreasury}
       />
 
       <main className="min-h-screen border-surface-border pb-20 md:border-x md:pb-0">
@@ -97,50 +142,100 @@ function AppShell() {
           <h1 className="m-0 font-display text-[19px] font-bold tracking-tight text-ink">{headerTitle}</h1>
         </header>
 
-        {view === 'home' ? (
+        {route.view === 'home' ? (
           <>
-            <PostComposer onPosted={refresh} onGetVerified={() => setView('verify')} />
+            <PostComposer onPosted={refresh} onGetVerified={() => navigate(verifyPath())} />
+            <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
+              <button
+                type="button"
+                className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+                  feedFilter === 'all'
+                    ? 'border-b-2 border-brand-violetSoft text-ink'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+                onClick={() => setFeedFilter('all')}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+                  feedFilter === 'listings'
+                    ? 'border-b-2 border-gold text-ink'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+                onClick={() => setFeedFilter('listings')}
+              >
+                <BriefcaseIcon size={14} />
+                Listings
+              </button>
+            </div>
             <Feed
-              posts={posts}
+              posts={feedFilter === 'listings' ? posts.filter((p) => p.is_listing && p.listing_active) : posts}
               loading={loading}
               error={error}
               onTipped={refresh}
               onDeleted={refresh}
               onVisitProfile={visitProfile}
+              onVisitPost={visitPost}
+              onMessageProvider={messageWallet}
+              emptyMessage={feedFilter === 'listings' ? 'No skill listings yet. Be the first to post one.' : undefined}
             />
           </>
-        ) : view === 'notifications' ? (
+        ) : route.view === 'notifications' ? (
           <NotificationsPage onVisitProfile={visitProfile} />
-        ) : view === 'messages' ? (
+        ) : route.view === 'messages' ? (
           <MessagesPage
-            openWallet={dmTarget}
-            onConsumeOpenWallet={() => setDmTarget(null)}
+            openWallet={route.wallet ?? null}
+            onOpenThread={(w) => navigate(messagesPath(w))}
+            onCloseThread={() => navigate(messagesPath(), { replace: true })}
             onVisitProfile={visitProfile}
+            onVisitPost={visitPost}
           />
-        ) : view === 'verify' ? (
+        ) : route.view === 'verify' ? (
           <div className="px-4 pt-4">
-            <GetVerifiedPage onBack={() => setView('home')} />
+            <GetVerifiedPage onBack={goHome} />
           </div>
-        ) : view === 'quests' ? (
+        ) : route.view === 'quests' ? (
           <div className="px-4 pt-4">
-            <QuestsPage onBack={() => setView('home')} />
+            <QuestsPage onBack={goHome} />
           </div>
-        ) : view === 'settings' ? (
+        ) : route.view === 'settings' ? (
           <div className="px-4 pt-4">
-            <SettingsPage onBack={() => setView('home')} />
+            <SettingsPage onBack={goHome} />
+          </div>
+        ) : route.view === 'admin' ? (
+          <div className="px-4 pt-4">
+            <AdminPage onBack={goHome} />
+          </div>
+        ) : route.view === 'marketplace' ? (
+          <div className="px-4 pt-4">
+            <MarketplacePage
+              tab={route.tab ?? 'listings'}
+              onChangeTab={(tab) => navigate(marketplacePath(tab))}
+              onOpenThread={(wallet) => navigate(messagesPath(wallet))}
+              onVisitPost={visitPost}
+            />
+          </div>
+        ) : route.view === 'post' ? (
+          <div className="px-4 pt-4">
+            <PostPage
+              postId={route.postId}
+              onBack={goHome}
+              onVisitProfile={visitProfile}
+              onMessageProvider={messageWallet}
+              onChanged={refresh}
+            />
           </div>
         ) : (
           <div className="px-4 pt-4">
             <ProfilePage
-              walletAddress={viewedWallet ?? undefined}
+              walletAddress={route.wallet}
               onChanged={refresh}
               onMessage={messageWallet}
-              onGetVerified={() => setView('verify')}
-              highlightPostId={highlightPostId}
-              onBack={() => {
-                setViewedWallet(null)
-                setView('home')
-              }}
+              onGetVerified={() => navigate(verifyPath())}
+              onVisitPost={visitPost}
+              onBack={route.wallet ? goHome : undefined}
             />
           </div>
         )}
@@ -150,7 +245,7 @@ function AppShell() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onVisitProfile={visitProfile}
-        onVisitPost={visitPost}
+        onVisitPost={(_walletAddress, postId) => visitPost(postId)}
       />
 
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">
@@ -161,12 +256,12 @@ function AppShell() {
           <button
             type="button"
             className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              view === 'notifications' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+              route.view === 'notifications' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
             }`}
-            onClick={() => setView('notifications')}
+            onClick={() => navigate(notificationsPath())}
             aria-label="Notifications"
           >
-            <BellIcon size={19} filled={view === 'notifications'} />
+            <BellIcon size={19} filled={route.view === 'notifications'} />
             {unreadNotifications > 0 && (
               <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-notify" aria-hidden="true" />
             )}
@@ -174,12 +269,12 @@ function AppShell() {
           <button
             type="button"
             className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              view === 'settings' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+              route.view === 'settings' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
             }`}
-            onClick={() => setView('settings')}
+            onClick={() => navigate(settingsPath())}
             aria-label="Settings"
           >
-            <SettingsIcon size={19} filled={view === 'settings'} />
+            <SettingsIcon size={19} filled={route.view === 'settings'} />
           </button>
           <ConnectWallet />
         </div>
@@ -188,15 +283,15 @@ function AppShell() {
       <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-surface-border bg-surface/90 backdrop-blur-xl md:hidden">
         <button
           className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            view === 'home' ? 'text-brand-violetSoft' : 'text-ink-muted'
+            route.view === 'home' ? 'text-brand-violetSoft' : 'text-ink-muted'
           }`}
-          onClick={() => setView('home')}
+          onClick={goHome}
         >
           Home
         </button>
         <button
           className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            view === 'profile' ? 'text-brand-violetSoft' : 'text-ink-muted'
+            route.view === 'profile' ? 'text-brand-violetSoft' : 'text-ink-muted'
           }`}
           onClick={goToOwnProfile}
         >
@@ -204,9 +299,9 @@ function AppShell() {
         </button>
         <button
           className={`relative flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            view === 'messages' ? 'text-brand-violetSoft' : 'text-ink-muted'
+            route.view === 'messages' ? 'text-brand-violetSoft' : 'text-ink-muted'
           }`}
-          onClick={() => setView('messages')}
+          onClick={() => navigate(messagesPath())}
         >
           Messages
           {totalUnread > 0 && (
@@ -217,9 +312,9 @@ function AppShell() {
         </button>
         <button
           className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            view === 'verify' ? 'text-brand-violetSoft' : 'text-ink-muted'
+            route.view === 'verify' ? 'text-brand-violetSoft' : 'text-ink-muted'
           }`}
-          onClick={() => setView('verify')}
+          onClick={() => navigate(verifyPath())}
         >
           Verify
         </button>
@@ -228,9 +323,8 @@ function AppShell() {
       <button
         className="fixed bottom-[76px] right-5 z-[25] flex h-14 w-14 items-center justify-center rounded-full bg-brand-gradient text-accent-contrast shadow-glow transition-transform duration-150 hover:scale-105 active:scale-95 md:hidden"
         onClick={() => {
-          if (view !== 'home') {
-            setView('home')
-            // tunggu satu tick biar composer-nya kerender dulu sebelum di-focus
+          if (route.view !== 'home') {
+            navigate(homePath())
             requestAnimationFrame(focusComposer)
           } else {
             focusComposer()

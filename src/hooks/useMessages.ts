@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useWallet } from '../contexts/WalletContext'
-import type { Conversation, Message } from '../types'
+import type { Conversation, ListingSnapshot, Message } from '../types'
 
 // ============================================================================
 // DIRECT MESSAGES — "ala kadarnya", sama kayak posts/reposts: query langsung
@@ -149,13 +149,15 @@ export function useThread(otherWallet: string | null) {
       setMessages(thread)
 
       // Tandai pesan masuk dari lawan bicara ini sebagai udah dibaca begitu
-      // thread-nya dibuka.
-      const unreadIds = thread
-        .filter((m) => m.receiver_wallet === walletAddress && !m.read)
-        .map((m) => m.id)
-      if (unreadIds.length > 0) {
-        const { error: updateError } = await supabase.from('messages').update({ read: true }).in('id', unreadIds)
-        if (updateError) console.warn('[MUSYAWARAH] Gagal nandain pesan udah dibaca:', updateError)
+      // thread-nya dibuka. Lewat RPC (bukan .update() langsung) karena hak
+      // UPDATE ke `messages` dicabut di 007_marketplace_negotiation.sql.
+      const hasUnread = thread.some((m) => m.receiver_wallet === walletAddress && !m.read)
+      if (hasUnread) {
+        const { error: rpcError } = await supabase.rpc('mark_thread_read', {
+          p_wallet: walletAddress,
+          p_other_wallet: otherWallet,
+        })
+        if (rpcError) console.warn('[MUSYAWARAH] Gagal nandain pesan udah dibaca:', rpcError)
       }
     } catch (e) {
       setError('Failed to load conversation.')
@@ -176,13 +178,14 @@ export function useThread(otherWallet: string | null) {
 
       setSending(true)
       try {
-        const { data, error: insertError } = await supabase
-          .from('messages')
-          .insert({ sender_wallet: walletAddress, receiver_wallet: otherWallet, content: trimmed })
-          .select('*')
-          .single()
+        const { data, error: rpcError } = await supabase.rpc('send_message', {
+          p_sender: walletAddress,
+          p_receiver: otherWallet,
+          p_content: trimmed,
+          p_kind: 'text',
+        })
 
-        if (insertError) throw insertError
+        if (rpcError) throw rpcError
         setMessages((prev) => [...prev, data as Message])
       } finally {
         setSending(false)
@@ -191,5 +194,127 @@ export function useThread(otherWallet: string | null) {
     [walletAddress, otherWallet]
   )
 
-  return { messages, loading, error, sending, refresh, sendMessage }
+  /** Kirim tawaran harga buat suatu listing -- muncul sebagai bubble `offer`
+   * yang bisa di-Accept/Decline sama lawan bicara (lihat propose_offer §2). */
+  const sendOffer = useCallback(
+    async (postId: string, amount: number, coinSymbol = 'UCT') => {
+      if (!walletAddress || !otherWallet) return
+      setSending(true)
+      try {
+        const { data, error: rpcError } = await supabase.rpc('propose_offer', {
+          p_sender: walletAddress,
+          p_receiver: otherWallet,
+          p_post_id: postId,
+          p_amount: amount,
+          p_coin_symbol: coinSymbol,
+        })
+
+        if (rpcError) throw rpcError
+        setMessages((prev) => [...prev, data as Message])
+      } finally {
+        setSending(false)
+      }
+    },
+    [walletAddress, otherWallet]
+  )
+
+  /** Terima tawaran (cuma boleh dipanggil sama penerimanya) -- bikin `orders`
+   * status 'pending' + pesan sistem `order_update` otomatis di server. */
+  const acceptOffer = useCallback(
+    async (messageId: string) => {
+      if (!walletAddress) return
+      const { data, error: rpcError } = await supabase.rpc('accept_offer', {
+        p_message_id: messageId,
+        p_caller_wallet: walletAddress,
+      })
+
+      if (rpcError) throw rpcError
+      await refresh() // ambil ulang thread biar pesan order_update otomatis ikut kebaca
+      return data as Message
+    },
+    [walletAddress, refresh]
+  )
+
+  /** Tolak tawaran (cuma boleh dipanggil sama penerimanya). */
+  const declineOffer = useCallback(
+    async (messageId: string) => {
+      if (!walletAddress) return
+      const { data, error: rpcError } = await supabase.rpc('decline_offer', {
+        p_message_id: messageId,
+        p_caller_wallet: walletAddress,
+      })
+
+      if (rpcError) throw rpcError
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? (data as Message) : m)))
+      return data as Message
+    },
+    [walletAddress]
+  )
+
+  return { messages, loading, error, sending, refresh, sendMessage, sendOffer, acceptOffer, declineOffer }
+}
+
+/** Kirim kartu listing sebagai pesan pertama pas buyer klik "Nego & Hire" di
+ * kartu listing (draft §1b: "dikirim otomatis sebagai pesan pertama"). Bukan
+ * hook -- dipanggil sekali dari App.tsx sebelum pindah ke halaman DM, jadi
+ * gak perlu subscribe ke thread manapun. */
+export async function sendListingRefMessage(senderWallet: string, receiverWallet: string, postId: string) {
+  const { error } = await supabase.rpc('send_message', {
+    p_sender: senderWallet,
+    p_receiver: receiverWallet,
+    p_kind: 'listing_ref',
+    p_payload: { post_id: postId },
+  })
+  if (error) throw error
+}
+
+/** Ambil ringkasan (title/harga/kategori/dst) buat sekumpulan post_id yang
+ * dipakai di kartu `listing_ref`/`offer` sepanjang satu thread -- di-batch
+ * sekali per refresh, sama pola-nya kayak avatarByWallet di useConversations
+ * di atas, biar gak query per-bubble. */
+export function useListingSnapshots(messages: Message[]) {
+  const [snapshots, setSnapshots] = useState<Record<string, ListingSnapshot>>({})
+
+  useEffect(() => {
+    const postIds = [
+      ...new Set(
+        messages
+          .filter((m) => m.kind === 'listing_ref' || m.kind === 'offer')
+          .map((m) => (m.payload as { post_id?: string } | null)?.post_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ]
+
+    if (postIds.length === 0) {
+      setSnapshots({})
+      return
+    }
+
+    let cancelled = false
+    supabase
+      .from('posts')
+      .select(
+        'id, listing_title, listing_category, listing_price_amount, listing_price_mode, listing_coin_symbol, listing_active, author_wallet'
+      )
+      .in('id', postIds)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.warn('[MUSYAWARAH] Gagal ngambil ringkasan listing buat kartu chat:', error)
+          return
+        }
+        const byId: Record<string, ListingSnapshot> = {}
+        for (const row of (data ?? []) as ListingSnapshot[]) {
+          byId[row.id] = row
+        }
+        setSnapshots(byId)
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.map((m) => m.id).join(',')])
+
+  return snapshots
 }

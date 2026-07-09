@@ -63,7 +63,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = useCallback(
     async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username'>>) => {
-      if (!walletAddress) throw new Error('Wallet belum connect')
+      if (!walletAddress) throw new Error('Wallet not connected')
       const { data, error } = await supabase
         .from('profiles')
         .upsert({ wallet_address: walletAddress, ...fields })
@@ -86,6 +86,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
 export function useProfile() {
   const ctx = useContext(ProfileContext)
-  if (!ctx) throw new Error('useProfile harus dipakai di dalam <ProfileProvider>')
+  if (!ctx) throw new Error('useProfile must be used inside <ProfileProvider>')
   return ctx
 }
