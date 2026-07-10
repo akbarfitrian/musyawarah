@@ -6,10 +6,13 @@ import { submitReview, useMyReviewedOrderIds } from '../hooks/useReviews'
 import { useViewedProfile } from '../hooks/useViewedProfile'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
+import { linkify } from '../utils/linkify'
 import { messagesPath } from '../utils/routes'
 import { CopyLinkButton } from './CopyLinkButton'
 import { OrderUpdateChip } from './OrderUpdateChip'
+import { VerifiedBadge } from './VerifiedBadge'
 import type { ListingSnapshot, Message, OfferPayload, Order, OrderUpdatePayload } from '../types'
+import type { VerificationTier } from '../lib/verification'
 import {
   BriefcaseIcon,
   CheckIcon,
@@ -24,6 +27,7 @@ import {
 function ConversationRow({
   wallet,
   avatarUrl,
+  verificationTier,
   preview,
   timestamp,
   unread,
@@ -32,6 +36,7 @@ function ConversationRow({
 }: {
   wallet: string
   avatarUrl: string | null
+  verificationTier?: VerificationTier
   preview: string
   timestamp: string
   unread: number
@@ -80,6 +85,7 @@ function ConversationRow({
           >
             {shortenAddress(wallet)}
           </button>
+          <VerifiedBadge tier={verificationTier} size={13} />
           <span className="text-ink-faint">·</span>
           <span className="shrink-0 text-[12px] text-ink-muted">{timeAgo(timestamp)}</span>
         </div>
@@ -286,7 +292,7 @@ function MessageBubble({
         <div className="mb-1.5">
           <ListingMiniCard listing={listing} onVisitPost={onVisitPost} />
         </div>
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words">{linkify(message.content)}</p>
         <div className="mt-1.5 flex items-center gap-2">
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -334,7 +340,7 @@ function MessageBubble({
   // kind === 'text'
   return bubbleShell(
     <>
-      {message.content}
+      <span className="whitespace-pre-wrap break-words">{linkify(message.content)}</span>
       <span className={`ml-2 text-[10px] ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
         {timeAgo(message.created_at)}
       </span>
@@ -417,7 +423,7 @@ function ThreadView({
     .filter((o) => o.status === 'released')
     .map((o) => o.id)
   const reviewedOrderIds = useMyReviewedOrderIds(releasedOrderIds, myWallet)
-  const { profile: otherProfile } = useViewedProfile(otherWallet)
+  const { profile: otherProfile, verificationTier: otherVerificationTier } = useViewedProfile(otherWallet)
   const [draft, setDraft] = useState('')
   const [showOfferForm, setShowOfferForm] = useState(false)
   const [actingOnId, setActingOnId] = useState<string | null>(null)
@@ -618,6 +624,7 @@ function ThreadView({
         >
           {shortenAddress(otherWallet)}
         </button>
+        <VerifiedBadge tier={otherVerificationTier} size={15} />
         <CopyLinkButton
           path={messagesPath(otherWallet)}
           label="Copy link to this conversation"
@@ -823,6 +830,7 @@ export function MessagesPage({
             key={c.wallet_address}
             wallet={c.wallet_address}
             avatarUrl={c.avatar_url}
+            verificationTier={c.verification_tier}
             preview={c.last_message.sender_wallet === myWallet ? `You: ${c.last_message.content}` : c.last_message.content}
             timestamp={c.last_message.created_at}
             unread={c.unread_count}

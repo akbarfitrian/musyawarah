@@ -173,6 +173,8 @@ export interface Conversation {
   unread_count: number
   /** Foto profil lawan bicara, kalau ada. */
   avatar_url: string | null
+  /** Tier verifikasi lawan bicara (buat badge centang di daftar percakapan). */
+  verification_tier?: VerificationTier
 }
 
 export interface Follow {

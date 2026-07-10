@@ -18,91 +18,146 @@ export function useConversations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    if (!walletAddress) {
-      setConversations([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const { data, error: queryError } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`sender_wallet.eq.${walletAddress},receiver_wallet.eq.${walletAddress}`)
-        .order('created_at', { ascending: false })
-        .limit(500)
-
-      if (queryError) throw queryError
-
-      const byWallet = new Map<string, Conversation>()
-      for (const m of (data ?? []) as Message[]) {
-        const other = m.sender_wallet === walletAddress ? m.receiver_wallet : m.sender_wallet
-        const isUnread = m.receiver_wallet === walletAddress && !m.read
-
-        const existing = byWallet.get(other)
-        if (!existing) {
-          // data udah diurutin created_at desc, jadi baris pertama per wallet
-          // otomatis jadi pesan paling baru buat preview-nya.
-          byWallet.set(other, { wallet_address: other, last_message: m, unread_count: isUnread ? 1 : 0, avatar_url: null })
-        } else if (isUnread) {
-          existing.unread_count += 1
-        }
+  // `showSpinner` sama polanya kayak useThread di bawah: cuma true buat load
+  // pertama kali, biar polling tiap beberapa detik nggak nge-reset `loading`
+  // dan bikin seluruh daftar percakapan keliatan berkedip padahal isinya
+  // belum tentu berubah.
+  const load = useCallback(
+    async (showSpinner: boolean) => {
+      if (!walletAddress) {
+        setConversations([])
+        setLoading(false)
+        return
       }
+      if (showSpinner) setLoading(true)
+      setError(null)
+      try {
+        const { data, error: queryError } = await supabase
+          .from('messages')
+          .select('*')
+          .or(`sender_wallet.eq.${walletAddress},receiver_wallet.eq.${walletAddress}`)
+          .order('created_at', { ascending: false })
+          .limit(500)
 
-      const list = [...byWallet.values()].sort(
-        (a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()
-      )
+        if (queryError) throw queryError
 
-      // Foto profil lawan bicara ("ala kadarnya" -- kalau query ini gagal,
-      // daftar pesan tetap jalan pakai avatar warna generated, errornya
-      // cuma di-log, sama kayak pola di usePosts.ts).
-      const otherWallets = list.map((c) => c.wallet_address)
-      if (otherWallets.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('wallet_address, avatar_url')
-          .in('wallet_address', otherWallets)
+        const byWallet = new Map<string, Conversation>()
+        for (const m of (data ?? []) as Message[]) {
+          const other = m.sender_wallet === walletAddress ? m.receiver_wallet : m.sender_wallet
+          const isUnread = m.receiver_wallet === walletAddress && !m.read
 
-        if (profilesError) {
-          console.warn('[MUSYAWARAH] Gagal ngambil foto profil buat daftar pesan:', profilesError)
-        } else {
-          const avatarByWallet = (profilesData ?? []).reduce(
-            (acc, p) => {
-              acc[p.wallet_address] = p.avatar_url
-              return acc
-            },
-            {} as Record<string, string | null>
-          )
-          for (const c of list) {
-            c.avatar_url = avatarByWallet[c.wallet_address] ?? null
+          const existing = byWallet.get(other)
+          if (!existing) {
+            // data udah diurutin created_at desc, jadi baris pertama per wallet
+            // otomatis jadi pesan paling baru buat preview-nya.
+            byWallet.set(other, { wallet_address: other, last_message: m, unread_count: isUnread ? 1 : 0, avatar_url: null })
+          } else if (isUnread) {
+            existing.unread_count += 1
           }
         }
-      }
 
-      setConversations(list)
-    } catch (e) {
-      setError('Failed to load messages. Check your Supabase connection.')
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }, [walletAddress])
+        const list = [...byWallet.values()].sort(
+          (a, b) => new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()
+        )
+
+        // Foto profil lawan bicara ("ala kadarnya" -- kalau query ini gagal,
+        // daftar pesan tetap jalan pakai avatar warna generated, errornya
+        // cuma di-log, sama kayak pola di usePosts.ts).
+        const otherWallets = list.map((c) => c.wallet_address)
+        if (otherWallets.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('wallet_address, avatar_url')
+            .in('wallet_address', otherWallets)
+
+          if (profilesError) {
+            console.warn('[MUSYAWARAH] Gagal ngambil foto profil buat daftar pesan:', profilesError)
+          } else {
+            const avatarByWallet = (profilesData ?? []).reduce(
+              (acc, p) => {
+                acc[p.wallet_address] = p.avatar_url
+                return acc
+              },
+              {} as Record<string, string | null>
+            )
+            for (const c of list) {
+              c.avatar_url = avatarByWallet[c.wallet_address] ?? null
+            }
+          }
+
+          // Tier verifikasi lawan bicara ("ala kadarnya" -- kalau query ini
+          // gagal, daftar pesan tetap jalan tanpa badge centang, errornya
+          // cuma di-log). Langganan yang udah lewat expires_at-nya nggak
+          // dianggap aktif lagi, sama kayak logic di useVerification.ts.
+          const { data: verificationsData, error: verificationsError } = await supabase
+            .from('verifications')
+            .select('wallet_address, tier, expires_at')
+            .in('wallet_address', otherWallets)
+
+          if (verificationsError) {
+            console.warn('[MUSYAWARAH] Gagal ngambil status verifikasi buat daftar pesan:', verificationsError)
+          } else {
+            const tierByWallet = (verificationsData ?? []).reduce(
+              (acc, v) => {
+                const isExpired = Boolean(v.expires_at) && new Date(v.expires_at as string).getTime() <= Date.now()
+                if (!isExpired) acc[v.wallet_address] = v.tier as Conversation['verification_tier']
+                return acc
+              },
+              {} as Record<string, Conversation['verification_tier']>
+            )
+            for (const c of list) {
+              c.verification_tier = tierByWallet[c.wallet_address]
+            }
+          }
+        }
+
+        // Sama kayak useThread -- cuma nge-set state kalau beneran ada
+        // perubahan (pesan baru / unread count berubah / avatar keupdate),
+        // biar polling silent-nya beneran nggak nge-trigger re-render kalau
+        // nggak ada yang baru.
+        setConversations((prev) => {
+          const sameLength = prev.length === list.length
+          const sameContent =
+            sameLength &&
+            prev.every(
+              (c, i) =>
+                c.wallet_address === list[i].wallet_address &&
+                c.last_message.id === list[i].last_message.id &&
+                c.unread_count === list[i].unread_count &&
+                c.avatar_url === list[i].avatar_url &&
+                c.verification_tier === list[i].verification_tier
+            )
+          return sameContent ? prev : list
+        })
+      } catch (e) {
+        if (showSpinner) setError('Failed to load messages. Check your Supabase connection.')
+        console.error(e)
+      } finally {
+        if (showSpinner) setLoading(false)
+      }
+    },
+    [walletAddress]
+  )
+
+  const refresh = useCallback(() => load(true), [load])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
-  // Polling ringan buat badge notifikasi pesan baru. App ini belum pakai
-  // Supabase Realtime (butuh diaktifin manual per-tabel di dashboard), jadi
-  // ini cara paling simpel biar unread count di tombol Messages keupdate
-  // sendiri tanpa harus pindah tab / reload pas ada pesan baru masuk.
+  // Polling ringan buat badge notifikasi pesan baru + preview daftar chat.
+  // App ini belum pakai Supabase Realtime (butuh diaktifin manual per-tabel
+  // di dashboard), jadi ini cara paling simpel biar unread count & preview
+  // pesan terakhir keupdate sendiri tanpa harus pindah tab / reload. Interval
+  // dipercepat jadi 5 detik (dari 10 detik) biar lebih responsif.
   useEffect(() => {
     if (!walletAddress) return
-    const interval = setInterval(refresh, 10000)
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    const interval = setInterval(tick, 5000)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh()
+      if (document.visibilityState === 'visible') load(false)
     }
     window.addEventListener('focus', onVisible)
     document.addEventListener('visibilitychange', onVisible)
@@ -111,7 +166,7 @@ export function useConversations() {
       window.removeEventListener('focus', onVisible)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [walletAddress, refresh])
+  }, [walletAddress, load])
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0)
 
@@ -126,50 +181,94 @@ export function useThread(otherWallet: string | null) {
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
 
-  const refresh = useCallback(async () => {
-    if (!walletAddress || !otherWallet) {
-      setMessages([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const { data, error: queryError } = await supabase
-        .from('messages')
-        .select('*')
-        .or(
-          `and(sender_wallet.eq.${walletAddress},receiver_wallet.eq.${otherWallet}),and(sender_wallet.eq.${otherWallet},receiver_wallet.eq.${walletAddress})`
-        )
-        .order('created_at', { ascending: true })
-        .limit(200)
-
-      if (queryError) throw queryError
-      const thread = (data ?? []) as Message[]
-      setMessages(thread)
-
-      // Tandai pesan masuk dari lawan bicara ini sebagai udah dibaca begitu
-      // thread-nya dibuka. Lewat RPC (bukan .update() langsung) karena hak
-      // UPDATE ke `messages` dicabut di 007_marketplace_negotiation.sql.
-      const hasUnread = thread.some((m) => m.receiver_wallet === walletAddress && !m.read)
-      if (hasUnread) {
-        const { error: rpcError } = await supabase.rpc('mark_thread_read', {
-          p_wallet: walletAddress,
-          p_other_wallet: otherWallet,
-        })
-        if (rpcError) console.warn('[MUSYAWARAH] Gagal nandain pesan udah dibaca:', rpcError)
+  // `showSpinner` cuma true buat load pertama kali / manual refresh yang
+  // dipanggil user (mis. abis kirim pesan gagal). Auto-sync di bawah (polling
+  // + refresh pas tab difokusin lagi) selalu manggil versi silent-nya biar
+  // pesan baru numpuk ke state tanpa nge-reset `loading` -- soalnya kalau
+  // `loading` ke-toggle tiap beberapa detik, jendela chat jadi keliatan
+  // "berkedip" / posisi scroll ke-reset walaupun sebenernya nggak ada pesan
+  // baru sama sekali.
+  const load = useCallback(
+    async (showSpinner: boolean) => {
+      if (!walletAddress || !otherWallet) {
+        setMessages([])
+        setLoading(false)
+        return
       }
-    } catch (e) {
-      setError('Failed to load conversation.')
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }, [walletAddress, otherWallet])
+      if (showSpinner) setLoading(true)
+      setError(null)
+      try {
+        const { data, error: queryError } = await supabase
+          .from('messages')
+          .select('*')
+          .or(
+            `and(sender_wallet.eq.${walletAddress},receiver_wallet.eq.${otherWallet}),and(sender_wallet.eq.${otherWallet},receiver_wallet.eq.${walletAddress})`
+          )
+          .order('created_at', { ascending: true })
+          .limit(200)
+
+        if (queryError) throw queryError
+        const thread = (data ?? []) as Message[]
+
+        // Cuma nge-set state kalau emang ada bedanya (pesan baru masuk / pesan
+        // lama keupdate, mis. status offer berubah). Ini yang bikin polling
+        // "silent" beneran silent -- kalau hasilnya sama persis, komponen
+        // nggak perlu re-render sama sekali.
+        setMessages((prev) => {
+          const sameLength = prev.length === thread.length
+          const sameContent =
+            sameLength && prev.every((m, i) => m.id === thread[i].id && m.read === thread[i].read && m.payload === thread[i].payload)
+          return sameContent ? prev : thread
+        })
+
+        // Tandai pesan masuk dari lawan bicara ini sebagai udah dibaca begitu
+        // thread-nya dibuka/ke-sync. Lewat RPC (bukan .update() langsung)
+        // karena hak UPDATE ke `messages` dicabut di 007_marketplace_negotiation.sql.
+        const hasUnread = thread.some((m) => m.receiver_wallet === walletAddress && !m.read)
+        if (hasUnread) {
+          const { error: rpcError } = await supabase.rpc('mark_thread_read', {
+            p_wallet: walletAddress,
+            p_other_wallet: otherWallet,
+          })
+          if (rpcError) console.warn('[MUSYAWARAH] Gagal nandain pesan udah dibaca:', rpcError)
+        }
+      } catch (e) {
+        if (showSpinner) setError('Failed to load conversation.')
+        console.error(e)
+      } finally {
+        if (showSpinner) setLoading(false)
+      }
+    },
+    [walletAddress, otherWallet]
+  )
+
+  const refresh = useCallback(() => load(true), [load])
 
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Auto-sync: thread yang lagi kebuka di-poll cepat (tiap 3 detik) biar
+  // pesan baru dari lawan bicara langsung nongol tanpa harus pindah ke
+  // Messages lalu balik lagi ke chat-nya. Di-pause pas tab nggak aktif biar
+  // hemat request, dan langsung nge-sync begitu tab difokusin/di-switch lagi.
+  useEffect(() => {
+    if (!walletAddress || !otherWallet) return
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    const interval = setInterval(tick, 3000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [walletAddress, otherWallet, load])
 
   const sendMessage = useCallback(
     async (content: string) => {

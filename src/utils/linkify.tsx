@@ -42,7 +42,14 @@ export function linkify(text: string): ReactNode[] {
           href={href}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="text-brand-violet underline decoration-brand-violet/30 underline-offset-2 hover:decoration-brand-violet"
+          // `currentColor` on purpose, bukan warna tetap: link ini bisa
+          // muncul di atas bubble dengan bg accent (chat "isMine", lihat
+          // MessagesPage) yang membalik ink jadi accent-contrast. Warna
+          // tetap kayak text-brand-violet bakal SAMA PERSIS sama bg bubble
+          // itu (accent == accent, karena tema ini monokrom) jadi link-nya
+          // ilang. Pakai currentColor + underline tebal biar link selalu
+          // ketauan sebagai link tanpa pernah nyatu sama background-nya.
+          className="underline decoration-current/40 underline-offset-2 font-medium hover:decoration-current"
           onClick={(e) => e.stopPropagation()}
         >
           {url}
