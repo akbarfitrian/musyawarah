@@ -358,8 +358,8 @@ export function PostCard({
             )
           )}
           {post.image_url && (
-            <div className="mt-2 overflow-hidden rounded-2xl border border-surface-border">
-              <img src={post.image_url} alt="" className="max-h-[420px] w-full object-cover" loading="lazy" />
+            <div className="mt-2 overflow-hidden rounded-2xl border border-surface-border bg-surface-soft">
+              <img src={post.image_url} alt="" className="max-h-[420px] w-full object-contain" loading="lazy" />
             </div>
           )}
           {error && <p className="mt-1 text-xs text-danger">{error}</p>}
