@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useWallet } from '../contexts/WalletContext'
-import { useConversations, useThread, useListingSnapshots } from '../hooks/useMessages'
-import { TREASURY_WALLET, cancelOrder, confirmOrderComplete, lockEscrowOrder, useOrderSnapshots } from '../hooks/useOrders'
+import { useConversations, useThread, useListingSnapshots, useProviderListings } from '../hooks/useMessages'
+import {
+  TREASURY_WALLET,
+  cancelOrder,
+  confirmOrderComplete,
+  lockEscrowOrder,
+  markOrderDelivered,
+  disputeOrder,
+  submitDeliverableRevision,
+  useOrderSnapshots,
+} from '../hooks/useOrders'
 import { submitReview, useMyReviewedOrderIds } from '../hooks/useReviews'
 import { useViewedProfile } from '../hooks/useViewedProfile'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
@@ -21,8 +30,10 @@ import {
   MessageIcon,
   SendIcon,
   TagIcon,
+  TrashIcon,
   XIcon,
 } from './icons'
+import { dismissReviewPrompt, isReviewPromptDismissed, undismissReviewPrompt } from '../utils/reviewDismissal'
 
 function ConversationRow({
   wallet,
@@ -201,13 +212,27 @@ function MessageBubble({
   onConfirmComplete,
   confirmingOrderId,
   confirmError,
+  onMarkDelivered,
+  deliveringOrderId,
+  deliverError,
   onSubmitReview,
   alreadyReviewed,
   submittingReviewOrderId,
   reviewError,
+  dismissedReview,
+  onDismissReview,
+  onUndismissReview,
   onCancelOrder,
   cancellingOrderId,
   cancelError,
+  onDisputeOrder,
+  disputingOrderId,
+  disputeError,
+  onSubmitRevision,
+  revisingOrderId,
+  revisionError,
+  onDeleteMessage,
+  deletingMessageId,
 }: {
   message: Message
   isMine: boolean
@@ -224,13 +249,31 @@ function MessageBubble({
   onConfirmComplete: (order: Order) => void
   confirmingOrderId: string | null
   confirmError: { orderId: string; message: string } | null
+  onMarkDelivered: (order: Order, url: string) => void
+  deliveringOrderId: string | null
+  deliverError: { orderId: string; message: string } | null
   onSubmitReview: (order: Order, rating: number, comment: string) => void
   alreadyReviewed: boolean
   submittingReviewOrderId: string | null
   reviewError: { orderId: string; message: string } | null
+  dismissedReview: boolean
+  onDismissReview: (order: Order) => void
+  onUndismissReview: (order: Order) => void
   onCancelOrder: (order: Order) => void
   cancellingOrderId: string | null
   cancelError: { orderId: string; message: string } | null
+  /** Buyer dispute delivery yang belum memuaskan (019/020) -- 1x per order. */
+  onDisputeOrder: (order: Order, reason: string) => void
+  disputingOrderId: string | null
+  disputeError: { orderId: string; message: string } | null
+  /** Provider balas dispute dengan link baru (019). */
+  onSubmitRevision: (order: Order, url: string) => void
+  revisingOrderId: string | null
+  revisionError: { orderId: string; message: string } | null
+  /** Hapus pesan `text` milik sendiri (014) -- cuma dipasang buat `isMine`
+   * di titik render-nya, lihat bawah. */
+  onDeleteMessage?: (messageId: string) => void
+  deletingMessageId?: string | null
 }) {
   // Pesan sistem (`order_update`) dipusatkan sebagai chip kecil, bukan
   // bubble kiri/kanan -- ini bukan pesan dari salah satu peserta, jadi gak
@@ -248,13 +291,25 @@ function MessageBubble({
         onConfirmComplete={onConfirmComplete}
         confirmingOrderId={confirmingOrderId}
         confirmError={confirmError}
+        onMarkDelivered={onMarkDelivered}
+        deliveringOrderId={deliveringOrderId}
+        deliverError={deliverError}
         onSubmitReview={onSubmitReview}
         alreadyReviewed={alreadyReviewed}
         submittingReviewOrderId={submittingReviewOrderId}
         reviewError={reviewError}
+        dismissed={dismissedReview}
+        onDismissReview={onDismissReview}
+        onUndismissReview={onUndismissReview}
         onCancelOrder={onCancelOrder}
         cancellingOrderId={cancellingOrderId}
         cancelError={cancelError}
+        onDisputeOrder={onDisputeOrder}
+        disputingOrderId={disputingOrderId}
+        disputeError={disputeError}
+        onSubmitRevision={onSubmitRevision}
+        revisingOrderId={revisingOrderId}
+        revisionError={revisionError}
       />
     )
   }
@@ -338,19 +393,86 @@ function MessageBubble({
   }
 
   // kind === 'text'
-  return bubbleShell(
-    <>
-      <span className="whitespace-pre-wrap break-words">{linkify(message.content)}</span>
-      <span className={`ml-2 text-[10px] ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
-        {timeAgo(message.created_at)}
+  if (message.deleted) {
+    return bubbleShell(
+      <span className={`italic ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
+        This message was deleted
+        <span className={`ml-2 text-[10px] not-italic ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
+          {timeAgo(message.created_at)}
+        </span>
       </span>
-    </>
+    )
+  }
+
+  return (
+    <div className={`group flex items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+      {isMine && onDeleteMessage && (
+        <button
+          type="button"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-surface-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+          onClick={() => {
+            if (window.confirm('Delete this message? This cannot be undone.')) onDeleteMessage(message.id)
+          }}
+          disabled={deletingMessageId === message.id}
+          aria-label="Delete message"
+        >
+          <TrashIcon size={13} />
+        </button>
+      )}
+      <div
+        className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[14px] leading-snug ${
+          isMine
+            ? 'rounded-br-md bg-brand-gradient text-accent-contrast'
+            : 'rounded-bl-md border border-surface-border bg-surface text-ink'
+        }`}
+      >
+        <span className="whitespace-pre-wrap break-words">{linkify(message.content)}</span>
+        <span className={`ml-2 text-[10px] ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
+          {timeAgo(message.created_at)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** Dropdown buat milih listing mana yang mau ditawar, muncul di atas
+ * `OfferForm` cuma kalau lawan bicara punya LEBIH DARI 1 listing aktif --
+ * biar gak maksa mikir tiap kali cuma ada 1 pilihan. Gantiin skema lama yang
+ * ngunci "Make offer" ke kartu listing_ref/offer PALING BARU di riwayat
+ * chat, yang bisa aja udah nggak aktif walau providernya sebenernya masih
+ * punya listing lain yang aktif. */
+function ListingSelector({
+  listings,
+  selectedId,
+  onChange,
+}: {
+  listings: ListingSnapshot[]
+  selectedId: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 px-3 pt-2.5">
+      <span className="shrink-0 text-[11px] font-medium text-ink-faint">For listing</span>
+      <select
+        value={selectedId}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-w-0 flex-1 rounded-lg border border-surface-border bg-base px-2 py-1.5 text-[12px] text-ink outline-none focus:border-gold/60"
+      >
+        {listings.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.listing_title} — {l.listing_price_amount} {l.listing_coin_symbol ?? 'UCT'}
+          </option>
+        ))}
+      </select>
+    </div>
   )
 }
 
 /** Form kecil buat kirim tawaran harga -- muncul di atas kotak ketik pas
- * user klik "Make offer", cuma ada kalau ada listing yang lagi dibahas di
- * thread ini (dari kartu `listing_ref`/`offer` terakhir). */
+ * user klik "Make offer". `listing` di sini SELALU salah satu listing yang
+ * MASIH AKTIF (lihat `offerCandidates` di ThreadView) -- kalau ada lebih
+ * dari satu kandidat, `ListingSelector` di atas form ini yang nentuin
+ * listing mana yang lagi dipilih. */
 function OfferForm({
   listing,
   onSend,
@@ -368,7 +490,7 @@ function OfferForm({
   const valid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0
 
   return (
-    <div className="border-t border-surface-border bg-surface/60 px-3 py-2.5">
+    <div className="px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="truncate text-[12px] font-medium text-ink-muted">
           Offer for <span className="font-semibold text-ink">{listing.listing_title}</span>
@@ -415,7 +537,7 @@ function ThreadView({
   onVisitPost?: (postId: string) => void
 }) {
   const { walletAddress: myWallet, sendTip } = useWallet()
-  const { messages, loading, error, sending, refresh, sendMessage, sendOffer, acceptOffer, declineOffer } =
+  const { messages, loading, error, sending, refresh, sendMessage, sendOffer, acceptOffer, declineOffer, deleteMessage } =
     useThread(otherWallet)
   const listingSnapshots = useListingSnapshots(messages)
   const orderSnapshots = useOrderSnapshots(messages)
@@ -424,35 +546,94 @@ function ThreadView({
     .map((o) => o.id)
   const reviewedOrderIds = useMyReviewedOrderIds(releasedOrderIds, myWallet)
   const { profile: otherProfile, verificationTier: otherVerificationTier } = useViewedProfile(otherWallet)
+  const { listings: offerableListings } = useProviderListings(otherWallet)
   const [draft, setDraft] = useState('')
   const [showOfferForm, setShowOfferForm] = useState(false)
+  const [selectedOfferListingId, setSelectedOfferListingId] = useState<string | null>(null)
   const [actingOnId, setActingOnId] = useState<string | null>(null)
   const [lockingOrderId, setLockingOrderId] = useState<string | null>(null)
   const [lockError, setLockError] = useState<{ orderId: string; message: string } | null>(null)
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<{ orderId: string; message: string } | null>(null)
+  const [deliveringOrderId, setDeliveringOrderId] = useState<string | null>(null)
+  const [deliverError, setDeliverError] = useState<{ orderId: string; message: string } | null>(null)
   const [submittingReviewOrderId, setSubmittingReviewOrderId] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<{ orderId: string; message: string } | null>(null)
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
   const [cancelError, setCancelError] = useState<{ orderId: string; message: string } | null>(null)
+  const [disputingOrderId, setDisputingOrderId] = useState<string | null>(null)
+  const [disputeError, setDisputeError] = useState<{ orderId: string; message: string } | null>(null)
+  const [revisingOrderId, setRevisingOrderId] = useState<string | null>(null)
+  const [revisionError, setRevisionError] = useState<{ orderId: string; message: string } | null>(null)
   // Ditambah begitu submit sukses -- `useMyReviewedOrderIds` cuma nge-fetch
   // ulang kalau daftar order_id-nya berubah, jadi status "udah direview"
   // buat order yang sama gak otomatis ke-refresh cuma dari refresh() thread.
   const [locallyReviewedIds, setLocallyReviewedIds] = useState<Set<string>>(new Set())
+  // Order yang form rating-nya lagi disembunyiin ("Not now") di device ini --
+  // dicek ulang dari localStorage tiap `releasedOrderIds` berubah, lihat
+  // utils/reviewDismissal.ts.
+  const [dismissedReviewIds, setDismissedReviewIds] = useState<Set<string>>(new Set())
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length])
 
+  useEffect(() => {
+    if (!myWallet || releasedOrderIds.length === 0) return
+    setDismissedReviewIds((prev) => {
+      const next = new Set(prev)
+      let changed = false
+      for (const id of releasedOrderIds) {
+        if (!next.has(id) && isReviewPromptDismissed(myWallet, id)) {
+          next.add(id)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myWallet, releasedOrderIds.join(',')])
+
+  // Ganti lawan bicara -> reset pilihan/form tawaran lama, biar gak nyangkut
+  // ke listing dari thread sebelumnya kalau ThreadView-nya kebetulan gak
+  // ke-unmount pas pindah percakapan.
+  useEffect(() => {
+    setShowOfferForm(false)
+    setSelectedOfferListingId(null)
+  }, [otherWallet])
+
   // Listing yang lagi "dibahas" di thread ini -- dari kartu listing_ref/offer
-  // PALING BARU, dipakai sebagai target tombol "Make offer". Kalau belum ada
-  // listing yang dibahas sama sekali, tombolnya disembunyikan.
+  // PALING BARU.
   const lastListingMessage = [...messages].reverse().find((m) => m.kind === 'listing_ref' || m.kind === 'offer')
   const lastListingPostId = lastListingMessage
     ? ((lastListingMessage.payload as { post_id: string }).post_id)
     : undefined
-  const activeListing = lastListingPostId ? listingSnapshots[lastListingPostId] : undefined
+  const referencedListing = lastListingPostId ? listingSnapshots[lastListingPostId] : undefined
+  const referencedListingIsActive = referencedListing?.listing_active === true
+
+  // Kandidat listing yang BOLEH ditawar di thread ini -- ini yang beneran
+  // nentuin boleh/nggaknya bikin tawaran baru (bukan "ada kartu listing di
+  // riwayat chat", kayak logic lama):
+  //  1. Listing yang lagi dibahas (referencedListing), SELAMA masih aktif --
+  //     ini juga yang bikin provider tetap bisa counter-offer listingnya
+  //     sendiri yang lagi dinego (listing itu bisa aja punyaku sendiri kalau
+  //     akulah provider-nya, bukan cuma punya lawan bicara).
+  //  2. Listing aktif LAIN milik lawan bicara (`offerableListings`, query
+  //     langsung ke `posts` lewat useProviderListings -- bukan dari riwayat
+  //     chat) -- ini yang dipakai buat "pindah" ke listing lain kalau lawan
+  //     bicara punya lebih dari satu, lewat ListingSelector di bawah.
+  // Kalau providernya udah nonaktifin SEMUA listingnya (termasuk yang lagi
+  // dibahas), daftar ini kosong dan tombol "Make offer" disembunyikan --
+  // biarpun ada kartu listing_ref/offer lama yang masih nempel di chat.
+  const offerCandidates: ListingSnapshot[] = [
+    ...(referencedListingIsActive && referencedListing ? [referencedListing] : []),
+    ...offerableListings.filter((l) => l.id !== referencedListing?.id),
+  ]
+  const defaultOfferListing = offerCandidates[0]
+  const currentOfferListing =
+    offerCandidates.find((l) => l.id === selectedOfferListingId) ?? defaultOfferListing
 
   async function handleSend() {
     const trimmed = draft.trim()
@@ -467,13 +648,24 @@ function ThreadView({
   }
 
   async function handleSendOffer(amount: number, coinSymbol: string) {
-    if (!activeListing) return
+    if (!currentOfferListing) return
     try {
-      await sendOffer(activeListing.id, amount, coinSymbol)
+      await sendOffer(currentOfferListing.id, amount, coinSymbol)
       setShowOfferForm(false)
+      setSelectedOfferListingId(null)
     } catch (e) {
       console.error('[MUSYAWARAH] Gagal ngirim tawaran:', e)
     }
+  }
+
+  function openOfferForm() {
+    setSelectedOfferListingId(defaultOfferListing?.id ?? null)
+    setShowOfferForm(true)
+  }
+
+  function closeOfferForm() {
+    setShowOfferForm(false)
+    setSelectedOfferListingId(null)
   }
 
   async function handleAccept(messageId: string) {
@@ -552,6 +744,26 @@ function ThreadView({
     }
   }
 
+  /** Provider klik "Mark as delivered" di form dalam chip order_update status
+   * 'locked' (Fase 3.5, 015) -- RPC saja, gak ada integrasi wallet. Chip baru
+   * ("Provider marked this order as delivered.") otomatis muncul dari RPC
+   * itu sendiri, tinggal refresh thread. */
+  async function handleMarkDelivered(order: Order, url: string) {
+    if (!myWallet) return
+    setDeliverError(null)
+    setDeliveringOrderId(order.id)
+    try {
+      await markOrderDelivered(order.id, myWallet, url.trim())
+      await refresh()
+    } catch (e) {
+      console.error('[MUSYAWARAH] Gagal menandai order sebagai delivered:', e)
+      const message = e instanceof Error ? e.message : 'Failed to save deliverable link. Try again.'
+      setDeliverError({ orderId: order.id, message })
+    } finally {
+      setDeliveringOrderId(null)
+    }
+  }
+
   /** Buyer ATAU provider klik "Cancel order" di chip order_update status
    * 'pending' (011) -- RPC saja, cuma bisa selama belum ada dana di escrow.
    * Chip baru ("Order cancelled.") otomatis muncul dari `cancel_order`
@@ -572,6 +784,46 @@ function ThreadView({
     }
   }
 
+  /** Buyer klik "Submit dispute" di chip order_update status 'locked'
+   * (019/020) -- RPC saja, cuma bisa sekali per order (dijaga di server
+   * lewat `dispute_used`). Chip baru ("Buyer disputed...") otomatis muncul
+   * dari `dispute_order` sendiri, tinggal refresh thread. */
+  async function handleDisputeOrder(order: Order, reason: string) {
+    if (!myWallet) return
+    setDisputeError(null)
+    setDisputingOrderId(order.id)
+    try {
+      await disputeOrder(order.id, myWallet, reason)
+      await refresh()
+    } catch (e) {
+      console.error('[MUSYAWARAH] Gagal mengajukan dispute:', e)
+      const message = e instanceof Error ? e.message : 'Failed to submit dispute. Try again.'
+      setDisputeError({ orderId: order.id, message })
+    } finally {
+      setDisputingOrderId(null)
+    }
+  }
+
+  /** Provider klik "Submit revision" di chip order_update status 'disputed'
+   * (019) -- balasan buat dispute (baik manual buyer maupun auto-flag 017).
+   * Chip baru ("Provider submitted a revised deliverable...") otomatis
+   * muncul dari `submit_deliverable_revision` sendiri. */
+  async function handleSubmitRevision(order: Order, url: string) {
+    if (!myWallet) return
+    setRevisionError(null)
+    setRevisingOrderId(order.id)
+    try {
+      await submitDeliverableRevision(order.id, myWallet, url.trim())
+      await refresh()
+    } catch (e) {
+      console.error('[MUSYAWARAH] Gagal mengirim revisi deliverable:', e)
+      const message = e instanceof Error ? e.message : 'Failed to submit revision. Try again.'
+      setRevisionError({ orderId: order.id, message })
+    } finally {
+      setRevisingOrderId(null)
+    }
+  }
+
   /** Salah satu pihak klik "Submit review" di chip order_update status
    * 'released' (Fase 4) -- RPC saja, gak ada integrasi wallet. */
   async function handleSubmitReview(order: Order, rating: number, comment: string) {
@@ -588,6 +840,39 @@ function ThreadView({
       setReviewError({ orderId: order.id, message })
     } finally {
       setSubmittingReviewOrderId(null)
+    }
+  }
+
+  /** User klik "Not now" di form rating -- sembunyiin form-nya di device ini
+   * (localStorage, lihat utils/reviewDismissal.ts). Order-nya tetap
+   * 'released' & tetap bisa direview kapan pun lewat "Rate now". */
+  function handleDismissReview(order: Order) {
+    if (!myWallet) return
+    dismissReviewPrompt(myWallet, order.id)
+    setDismissedReviewIds((prev) => new Set(prev).add(order.id))
+  }
+
+  /** User klik "Rate now" -- munculin lagi form yang tadi di-dismiss. */
+  function handleUndismissReview(order: Order) {
+    if (!myWallet) return
+    undismissReviewPrompt(myWallet, order.id)
+    setDismissedReviewIds((prev) => {
+      const next = new Set(prev)
+      next.delete(order.id)
+      return next
+    })
+  }
+
+  /** Hapus pesan `text` milik sendiri (014) -- konfirmasi dulu di MessageBubble
+   * sebelum manggil ini. */
+  async function handleDeleteMessage(messageId: string) {
+    setDeletingMessageId(messageId)
+    try {
+      await deleteMessage(messageId)
+    } catch (e) {
+      console.error('[MUSYAWARAH] Gagal menghapus pesan:', e)
+    } finally {
+      setDeletingMessageId(null)
     }
   }
 
@@ -664,13 +949,27 @@ function ThreadView({
                 onConfirmComplete={handleConfirmComplete}
                 confirmingOrderId={confirmingOrderId}
                 confirmError={confirmError}
+                onMarkDelivered={handleMarkDelivered}
+                deliveringOrderId={deliveringOrderId}
+                deliverError={deliverError}
                 onSubmitReview={handleSubmitReview}
                 alreadyReviewed={Boolean(orderId) && (reviewedOrderIds.has(orderId!) || locallyReviewedIds.has(orderId!))}
                 submittingReviewOrderId={submittingReviewOrderId}
                 reviewError={reviewError}
+                dismissedReview={Boolean(orderId) && dismissedReviewIds.has(orderId!)}
+                onDismissReview={handleDismissReview}
+                onUndismissReview={handleUndismissReview}
                 onCancelOrder={handleCancelOrder}
                 cancellingOrderId={cancellingOrderId}
                 cancelError={cancelError}
+                onDisputeOrder={handleDisputeOrder}
+                disputingOrderId={disputingOrderId}
+                disputeError={disputeError}
+                onSubmitRevision={handleSubmitRevision}
+                revisingOrderId={revisingOrderId}
+                revisionError={revisionError}
+                onDeleteMessage={handleDeleteMessage}
+                deletingMessageId={deletingMessageId}
               />
             )
           })
@@ -678,22 +977,36 @@ function ThreadView({
         <div ref={bottomRef} />
       </div>
 
-      {showOfferForm && activeListing && (
-        <OfferForm
-          listing={activeListing}
-          onSend={handleSendOffer}
-          onCancel={() => setShowOfferForm(false)}
-          sending={sending}
-        />
+      {showOfferForm && currentOfferListing && (
+        <div className="border-t border-surface-border bg-surface/60">
+          {offerCandidates.length > 1 && (
+            <ListingSelector
+              listings={offerCandidates}
+              selectedId={currentOfferListing.id}
+              onChange={setSelectedOfferListingId}
+            />
+          )}
+          <OfferForm
+            key={currentOfferListing.id}
+            listing={currentOfferListing}
+            onSend={handleSendOffer}
+            onCancel={closeOfferForm}
+            sending={sending}
+          />
+        </div>
       )}
 
       <div className="flex items-center gap-2 border-t border-surface-border p-3">
-        {activeListing && !showOfferForm && (
+        {offerCandidates.length > 0 && !showOfferForm && (
           <button
             type="button"
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-amber-400 px-3.5 text-[13px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95"
-            onClick={() => setShowOfferForm(true)}
-            title="Make an offer for this listing"
+            onClick={openOfferForm}
+            title={
+              offerCandidates.length > 1
+                ? 'Make an offer — choose which listing'
+                : 'Make an offer for this listing'
+            }
           >
             <BriefcaseIcon size={14} />
             Make offer

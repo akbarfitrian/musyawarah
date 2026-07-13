@@ -217,7 +217,14 @@ export function useThread(otherWallet: string | null) {
         setMessages((prev) => {
           const sameLength = prev.length === thread.length
           const sameContent =
-            sameLength && prev.every((m, i) => m.id === thread[i].id && m.read === thread[i].read && m.payload === thread[i].payload)
+            sameLength &&
+            prev.every(
+              (m, i) =>
+                m.id === thread[i].id &&
+                m.read === thread[i].read &&
+                m.payload === thread[i].payload &&
+                m.deleted === thread[i].deleted
+            )
           return sameContent ? prev : thread
         })
 
@@ -350,7 +357,37 @@ export function useThread(otherWallet: string | null) {
     [walletAddress]
   )
 
-  return { messages, loading, error, sending, refresh, sendMessage, sendOffer, acceptOffer, declineOffer }
+  /** Hapus pesan `text` milik sendiri (soft delete, 014) -- cuma pengirim
+   * yang boleh, lihat validasi lengkap di delete_message() RPC. Update baris
+   * lokal langsung (`content: ''`, `deleted: true`) biar bubble-nya kereplace
+   * jadi placeholder "Message deleted" tanpa nunggu poll berikutnya. */
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!walletAddress) return
+      const { data, error: rpcError } = await supabase.rpc('delete_message', {
+        p_message_id: messageId,
+        p_caller_wallet: walletAddress,
+      })
+
+      if (rpcError) throw rpcError
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? (data as Message) : m)))
+      return data as Message
+    },
+    [walletAddress]
+  )
+
+  return {
+    messages,
+    loading,
+    error,
+    sending,
+    refresh,
+    sendMessage,
+    sendOffer,
+    acceptOffer,
+    declineOffer,
+    deleteMessage,
+  }
 }
 
 /** Kirim kartu listing sebagai pesan pertama pas buyer klik "Nego & Hire" di
@@ -365,6 +402,56 @@ export async function sendListingRefMessage(senderWallet: string, receiverWallet
     p_payload: { post_id: postId },
   })
   if (error) throw error
+}
+
+/** Listing yang MASIH AKTIF SEKARANG milik `providerWallet` -- dipakai buat
+ * nentuin boleh/nggaknya tombol "Make offer" nongol di suatu thread DM
+ * (harus ada minimal 1), dan buat ngisi pilihan listing kalau providernya
+ * punya lebih dari 1 (lihat ListingSelector di MessagesPage.tsx). Beda dari
+ * `useListingSnapshots` di bawah -- itu ngambil listing yang UDAH PERNAH
+ * disebut di riwayat chat (termasuk yang udah di-nonaktifin, buat tetap
+ * nampilin kartunya), ini query langsung ke `posts` buat listing yang
+ * BENERAN masih aktif sekarang, gak peduli udah pernah dibahas di thread
+ * ini atau belum. Ini yang jadi sumber kebenaran boleh/nggaknya nawar --
+ * fix buat bug lama di mana tombol "Make offer" ngikutin kartu listing
+ * TERAKHIR di riwayat chat walau listing itu udah di-nonaktifin. */
+export function useProviderListings(providerWallet: string | null) {
+  const [listings, setListings] = useState<ListingSnapshot[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!providerWallet) {
+      setListings([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    supabase
+      .from('posts')
+      .select(
+        'id, listing_title, listing_category, listing_price_amount, listing_price_mode, listing_coin_symbol, listing_active, author_wallet'
+      )
+      .eq('author_wallet', providerWallet)
+      .eq('is_listing', true)
+      .eq('listing_active', true)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.warn('[MUSYAWARAH] Gagal ngambil listing aktif lawan bicara:', error)
+          setListings([])
+        } else {
+          setListings((data ?? []) as ListingSnapshot[])
+        }
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [providerWallet])
+
+  return { listings, loading }
 }
 
 /** Ambil ringkasan (title/harga/kategori/dst) buat sekumpulan post_id yang

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Musyawarah - A wallet-based space for deliberation, now with peer-to-peer hiring</title>
-<meta name="description" content="Musyawarah: a wallet-based social feed. Talk, agree, tip, and — new in v2.1 — hire and get hired with in-app escrow. No centralized account." />
+<title>Musyawarah - A wallet-based space for deliberation, with peer-to-peer hiring and self-resolving escrow</title>
+<meta name="description" content="Musyawarah: a wallet-based social feed. Talk, agree, tip, and hire and get hired with in-app escrow — now with required delivery links, one-time disputes, and automatic reminders and resolution. No centralized account." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -151,7 +151,7 @@
   .feat-desc{ font-size:14.5px; color:var(--ink-muted); margin:0; }
 
   /* ---------- MARKETPLACE ---------- */
-  .market-flow{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:24px; }
+  .market-flow{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:24px; }
   @media (max-width: 980px){ .market-flow{ grid-template-columns:repeat(2, 1fr); } }
   @media (max-width: 560px){ .market-flow{ grid-template-columns:1fr; } }
   .market-step{ border:1px solid var(--border); border-radius:16px; padding:24px 20px; background: linear-gradient(180deg, rgba(217,119,6,0.05), transparent); }
@@ -161,7 +161,7 @@
   .market-note{ font-size:13.5px; color:var(--ink-faint); border:1px solid var(--border); border-radius:12px; padding:16px 20px; }
 
   /* ---------- STATS STRIP ---------- */
-  .stats-strip{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+  .stats-strip{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; }
   @media (max-width: 860px){ .stats-strip{ grid-template-columns:repeat(2, 1fr); } }
   .stat-card{ border:1px solid var(--border); border-radius:16px; padding:24px 22px; }
   .stat-num{ font-family:'Fraunces', serif; font-size:28px; font-weight:500; margin-bottom:8px; }
@@ -265,9 +265,9 @@
   <!-- HERO -->
   <div class="wrap hero">
     <div>
-      <span class="eyebrow"><span class="dot"></span> v2.1 — now with peer-to-peer hiring</span>
+      <span class="eyebrow"><span class="dot"></span> v2.3 — Live on Sphere Unicity Network</span>
       <h1 class="headline">Talk, until you <em>agree.</em><br/>All recorded<span class="rule">,</span> all yours.</h1>
-      <p class="lede">Musyawarah is a space to talk where your identity is your own wallet. Post, tip, get verified, and — new in v2.1 — hire and get hired directly, escrowed in-app. No centralized account, no password, no middleman.</p>
+      <p class="lede">Musyawarah is a space to talk where your identity is your own wallet. Post, tip, get verified, and hire and get hired directly — escrowed in-app, with a required delivery link, a one-time dispute if the work isn't right, and reminders and auto-resolution so nothing sits stuck forever. No centralized account, no password, no middleman.</p>
       <div class="hero-ctas">
         <a href="/app/" class="btn btn-primary">Enter App →</a>
         <a href="#Marketplace" class="btn btn-ghost">See what's new</a>
@@ -346,9 +346,9 @@
   <section id="Marketplace">
     <div class="wrap">
       <div class="sec-head reveal">
-        <div class="sec-eyebrow">New in v2.1</div>
+        <div class="sec-eyebrow">Marketplace</div>
         <h2 class="sec-title">Any post can become a hire.</h2>
-        <p class="sec-desc">Turn a post into a listing, negotiate the price by DM, and settle the whole job — payment included — without leaving the app.</p>
+        <p class="sec-desc">Turn a post into a listing, negotiate the price by DM, and settle the whole job — delivery, confirmation, and payment — without leaving the app.</p>
       </div>
       <div class="market-flow reveal">
         <div class="market-step">
@@ -359,21 +359,31 @@
         <div class="market-step">
           <div class="market-num">02</div>
           <h3 class="market-title">Negotiate</h3>
-          <p class="market-desc">"Negotiate &amp; Hire" opens a DM with the listing attached. Either side proposes a price as an offer card — accept or decline.</p>
+          <p class="market-desc">"Negotiate &amp; Hire" opens a DM with the listing attached. Either side proposes a price as an offer card — accept or decline, or it auto-expires after 3 hours unanswered.</p>
         </div>
         <div class="market-step">
           <div class="market-num">03</div>
           <h3 class="market-title">Escrow</h3>
-          <p class="market-desc">Buyer locks payment to a treasury wallet, confirms the work is done, and the provider gets paid out — every step logged as a status chip in the thread.</p>
+          <p class="market-desc">Buyer locks payment to a treasury wallet. Both sides get a reminder if it sits waiting — starting at 1 hour, then every 6 hours.</p>
         </div>
         <div class="market-step">
           <div class="market-num">04</div>
+          <h3 class="market-title">Deliver</h3>
+          <p class="market-desc">Provider drops a link to the finished work — Drive, GitHub, Figma, wherever it lives. The buyer's confirm button only lights up once it's there.</p>
+        </div>
+        <div class="market-step">
+          <div class="market-num">05</div>
+          <h3 class="market-title">Confirm or dispute</h3>
+          <p class="market-desc">Buyer confirms, or disputes once with a reason if the work isn't right — the provider can answer with a revised link, which reopens confirmation.</p>
+        </div>
+        <div class="market-step">
+          <div class="market-num">06</div>
           <h3 class="market-title">Review</h3>
           <p class="market-desc">Once released, both sides leave a star rating. Ratings roll up into a reputation badge on the provider's profile.</p>
         </div>
       </div>
       <div class="market-note reveal">
-        <span class="mono">Trust model:</span> escrow is custodial, not trustless — the same treasury wallet used for verification payments holds locked funds until release.
+        <span class="mono">Trust model:</span> escrow is custodial, not trustless — the same treasury wallet used for verification payments holds locked funds until release. <span class="mono">Nothing gets stuck:</span> if a provider never delivers, the order is auto-flagged for review after 24 hours; if a buyer never confirms a delivered order, it auto-completes after 72 hours.
       </div>
     </div>
   </section>
@@ -401,6 +411,10 @@
         <div class="stat-card">
           <div class="stat-num">Live</div>
           <div class="stat-label">Wallet balance in the sidebar, with a per-token breakdown that updates on incoming transfers.</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">Del</div>
+          <div class="stat-label">Delete your own messages — the thread keeps a "Message deleted" placeholder, not a silent gap.</div>
         </div>
       </div>
     </div>

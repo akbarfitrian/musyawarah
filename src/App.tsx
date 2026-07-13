@@ -3,6 +3,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { WalletProvider, useWallet } from './contexts/WalletContext'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { usePosts } from './hooks/usePosts'
+import { LISTING_CATEGORIES, type ListingCategory } from './config/listingCategories'
 import { useConversations, sendListingRefMessage } from './hooks/useMessages'
 import { useNotifications } from './hooks/useNotifications'
 import { useRouter } from './hooks/useRouter'
@@ -44,7 +45,12 @@ function AppShell() {
   const { totalUnread } = useConversations()
   const { unreadCount: unreadNotifications } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
-  const [feedFilter, setFeedFilter] = useState<'all' | 'listings'>('all')
+  const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'listings'>('all')
+  // Cuma dipakai pas feedFilter === 'listings' -- array kosong berarti "All
+  // categories" (gak difilter). Bisa pilih lebih dari satu kategori sekaligus
+  // (mis. "Coding" + "Design"), hasilnya union (OR), bukan interseksi --
+  // soalnya satu listing cuma punya 1 kategori, jadi "AND" bakal selalu 0 hasil.
+  const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory[]>([])
   const { route, navigate } = useRouter()
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
 
@@ -153,9 +159,26 @@ function AppShell() {
                     ? 'border-b-2 border-brand-violetSoft text-ink'
                     : 'text-ink-muted hover:text-ink'
                 }`}
-                onClick={() => setFeedFilter('all')}
+                onClick={() => {
+                  setFeedFilter('all')
+                  setListingCategoryFilter([])
+                }}
               >
                 All
+              </button>
+              <button
+                type="button"
+                className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+                  feedFilter === 'posts'
+                    ? 'border-b-2 border-brand-violetSoft text-ink'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+                onClick={() => {
+                  setFeedFilter('posts')
+                  setListingCategoryFilter([])
+                }}
+              >
+                Posts
               </button>
               <button
                 type="button"
@@ -170,8 +193,57 @@ function AppShell() {
                 Listings
               </button>
             </div>
+            {feedFilter === 'listings' && (
+              <div className="mx-4 mb-3 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors ${
+                    listingCategoryFilter.length === 0
+                      ? 'border-gold bg-gold/10 text-ink'
+                      : 'border-surface-border text-ink-muted hover:text-ink'
+                  }`}
+                  onClick={() => setListingCategoryFilter([])}
+                >
+                  All categories
+                </button>
+                {LISTING_CATEGORIES.map((category) => {
+                  const active = listingCategoryFilter.includes(category)
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      aria-pressed={active}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors ${
+                        active
+                          ? 'border-gold bg-gold/10 text-ink'
+                          : 'border-surface-border text-ink-muted hover:text-ink'
+                      }`}
+                      onClick={() =>
+                        setListingCategoryFilter((prev) =>
+                          prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+                        )
+                      }
+                    >
+                      {category}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <Feed
-              posts={feedFilter === 'listings' ? posts.filter((p) => p.is_listing && p.listing_active) : posts}
+              posts={
+                feedFilter === 'listings'
+                  ? posts.filter(
+                      (p) =>
+                        p.is_listing &&
+                        p.listing_active &&
+                        (listingCategoryFilter.length === 0 ||
+                          (p.listing_category !== null && listingCategoryFilter.includes(p.listing_category as ListingCategory)))
+                    )
+                  : feedFilter === 'posts'
+                    ? posts.filter((p) => !p.is_listing)
+                    : posts
+              }
               loading={loading}
               error={error}
               onTipped={refresh}
@@ -179,7 +251,15 @@ function AppShell() {
               onVisitProfile={visitProfile}
               onVisitPost={visitPost}
               onMessageProvider={messageWallet}
-              emptyMessage={feedFilter === 'listings' ? 'No skill listings yet. Be the first to post one.' : undefined}
+              emptyMessage={
+                feedFilter === 'listings'
+                  ? listingCategoryFilter.length > 0
+                    ? `No listings in ${listingCategoryFilter.map((c) => `"${c}"`).join(', ')}. Try another category.`
+                    : 'No skill listings yet. Be the first to post one.'
+                  : feedFilter === 'posts'
+                    ? 'No posts yet. Be the first.'
+                    : undefined
+              }
             />
           </>
         ) : route.view === 'notifications' ? (

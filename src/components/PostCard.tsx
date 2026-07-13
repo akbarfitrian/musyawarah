@@ -11,9 +11,10 @@ import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
 import { canEditPost, maxPostChars } from '../lib/verification'
 import { supabase } from '../supabaseClient'
+import { setListingActive } from '../hooks/usePosts'
 import { postPath } from '../utils/routes'
 import { CopyLinkButton } from './CopyLinkButton'
-import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, TagIcon, MessageIcon } from './icons'
+import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, TagIcon, MessageIcon, CheckIcon } from './icons'
 
 export function PostCard({
   post,
@@ -48,7 +49,14 @@ export function PostCard({
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [togglingListing, setTogglingListing] = useState(false)
   const isOwnPost = walletAddress === post.author_wallet
+  // `orders.post_id` FK-nya `on delete restrict` (007_marketplace_
+  // negotiation.sql:57) -- begitu listing ini pernah punya order (APAPUN
+  // statusnya, termasuk yang udah 'cancelled'), delete_post() SELALU bakal
+  // gagal di server. Daripada biarin orang klik Delete terus gagal sama
+  // pesan generik, tombolnya diganti Deactivate/Activate di sini.
+  const listingHasOrders = post.is_listing && (post.order_count ?? 0) > 0
   const avatarUrl = resolveAuthorAvatar(post.author_wallet, post.author_avatar_url, walletAddress, myProfile?.avatar_url)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -142,6 +150,25 @@ export function PostCard({
     }
   }
 
+  // Dipakai gantiin Delete pas listing ini udah punya order (lihat
+  // listingHasOrders di atas) -- RPC yang sama dipakai "My Listings" di
+  // MarketplacePage.tsx, cuma triggernya dari sini juga.
+  async function handleToggleListing() {
+    if (!walletAddress || togglingListing) return
+    setTogglingListing(true)
+    setError(null)
+    try {
+      await setListingActive(walletAddress, post.id, !post.listing_active)
+      onTipped() // re-pakai callback refresh yang sama dipakai tip/repost/edit
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to update listing status. Try again.'
+      setError(message)
+      console.error(e)
+    } finally {
+      setTogglingListing(false)
+    }
+  }
+
   return (
     <div
       ref={cardRef}
@@ -215,16 +242,32 @@ export function PostCard({
                     <PencilIcon size={14} />
                   </button>
                 )}
-                {isOwnPost && (
+                {isOwnPost && listingHasOrders ? (
                   <button
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                    onClick={() => setConfirmingDelete(true)}
-                    disabled={deleting}
-                    aria-label="Delete post"
-                    title="Delete post"
+                    type="button"
+                    className="flex h-8 items-center gap-1 rounded-full px-2.5 text-[12px] font-semibold text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50"
+                    onClick={handleToggleListing}
+                    disabled={togglingListing}
+                    title={
+                      post.listing_active
+                        ? 'This listing has order history and can’t be deleted — deactivate it instead'
+                        : 'Reactivate this listing'
+                    }
                   >
-                    <TrashIcon size={15} />
+                    {togglingListing ? '…' : post.listing_active ? 'Deactivate' : 'Activate'}
                   </button>
+                ) : (
+                  isOwnPost && (
+                    <button
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                      onClick={() => setConfirmingDelete(true)}
+                      disabled={deleting}
+                      aria-label="Delete post"
+                      title="Delete post"
+                    >
+                      <TrashIcon size={15} />
+                    </button>
+                  )
                 )}
               </span>
           </div>
@@ -244,16 +287,29 @@ export function PostCard({
                   </span>
                 </span>
               </div>
-              {post.listing_category && (
-                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-muted">
-                  <TagIcon size={11} />
-                  {post.listing_category}
-                </span>
-              )}
-              {!post.listing_active && (
-                <span className="ml-2 inline-flex items-center rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-faint">
-                  Inactive
-                </span>
+              {(post.listing_category || !post.listing_active || (post.completed_order_count ?? 0) > 0) && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {post.listing_category && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-muted">
+                      <TagIcon size={11} />
+                      {post.listing_category}
+                    </span>
+                  )}
+                  {!post.listing_active && (
+                    <span className="inline-flex items-center rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-faint">
+                      Inactive
+                    </span>
+                  )}
+                  {(post.completed_order_count ?? 0) > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-muted"
+                      title="Orders confirmed received or paid out"
+                    >
+                      <CheckIcon size={10} />
+                      {post.completed_order_count} sold
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}

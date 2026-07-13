@@ -148,6 +148,35 @@ export function usePosts(authorWallet?: string) {
           }
         }
 
+        let orderCounts: Record<string, number> = {}
+        let completedOrderCounts: Record<string, number> = {}
+        const listingIds = postsData.filter((p) => p.is_listing).map((p) => p.id)
+        if (listingIds.length > 0) {
+          // Dipakai buat 2 hal: (1) badge "X terjual" di kartu listing --
+          // cuma hitung status 'completed'/'released' (lihat 009_marketplace_
+          // reviews.sql:75, itu juga syarat boleh direview), dan (2) nge-gate
+          // tombol Delete di PostCard -- `orders.post_id` FK-nya `on delete
+          // restrict` (007_marketplace_negotiation.sql:57), jadi listing yang
+          // punya order APAPUN statusnya gak akan pernah bisa dihapus.
+          // "Ala kadarnya" -- kalau query ini gagal, feed tetap jalan tanpa
+          // badge/gating-nya, errornya cuma di-log.
+          const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select('post_id, status')
+            .in('post_id', listingIds)
+
+          if (ordersError) {
+            console.warn('[MUSYAWARAH] Gagal ngambil data order buat listing:', ordersError)
+          } else {
+            for (const o of (ordersData ?? []) as { post_id: string; status: string }[]) {
+              orderCounts[o.post_id] = (orderCounts[o.post_id] ?? 0) + 1
+              if (o.status === 'completed' || o.status === 'released') {
+                completedOrderCounts[o.post_id] = (completedOrderCounts[o.post_id] ?? 0) + 1
+              }
+            }
+          }
+        }
+
         if (wallets.length > 0) {
           // Foto profil ("ala kadarnya" — kalau query ini gagal, feed tetap
           // jalan pakai avatar warna generated, jadi errornya cuma di-log).
@@ -198,6 +227,8 @@ export function usePosts(authorWallet?: string) {
           repost_total: repostTotals[p.id] ?? 0,
           reposted_by_me: repostedByMe[p.id] ?? false,
           author_verification_tier: verificationTierByWallet[p.author_wallet],
+          order_count: orderCounts[p.id] ?? 0,
+          completed_order_count: completedOrderCounts[p.id] ?? 0,
         }))
 
         // Sama kayak useThread/useConversations -- cuma nge-set state kalau
@@ -215,7 +246,9 @@ export function usePosts(authorWallet?: string) {
                 p.repost_total === withTotals[i].repost_total &&
                 p.reposted_by_me === withTotals[i].reposted_by_me &&
                 p.author_avatar_url === withTotals[i].author_avatar_url &&
-                p.author_verification_tier === withTotals[i].author_verification_tier
+                p.author_verification_tier === withTotals[i].author_verification_tier &&
+                p.order_count === withTotals[i].order_count &&
+                p.completed_order_count === withTotals[i].completed_order_count
             )
           return sameContent ? prev : withTotals
         })

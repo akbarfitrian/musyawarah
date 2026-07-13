@@ -10,7 +10,7 @@ import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { formatBytes, MAX_AVATAR_BYTES, uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
 import { profilePath } from '../utils/routes'
-import { CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
+import { BriefcaseIcon, CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
 import { Feed } from './Feed'
 import { FollowButton } from './FollowButton'
 import { VerifiedBadge } from './VerifiedBadge'
@@ -49,6 +49,17 @@ export function ProfilePage({
   const targetWallet = visitedWallet ?? myWallet
 
   const { posts, loading, error, refresh } = usePosts(targetWallet ?? undefined)
+  // Posts/Listings, gak ada "All" -- beda dari Home. Berlaku buat profil
+  // sendiri MAUPUN profil yang dikunjungi (isOwnProfile gak ngaruh ke ini).
+  const [profileTab, setProfileTab] = useState<'posts' | 'listings'>('posts')
+  // Listing yang inactive tetap kelihatan di profil SENDIRI (biar bisa
+  // dikelola/di-reactivate dari sini juga, sama kayak "My Listings" di
+  // MarketplacePage.tsx) tapi disembunyiin dari visitor -- sama kayak
+  // aturan tab "Listings" di Home (App.tsx).
+  const profilePosts =
+    profileTab === 'listings'
+      ? posts.filter((p) => p.is_listing && (isOwnProfile || p.listing_active))
+      : posts.filter((p) => !p.is_listing)
   const { profile: myProfile, updateProfile } = useProfile()
   const { tier: myVerificationTier } = useVerification()
   const { profile: viewedProfile, verificationTier: viewedVerificationTier, loading: viewedProfileLoading } =
@@ -339,8 +350,29 @@ export function ProfilePage({
       )}
 
       <div className="mt-4 -mx-4">
+        <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
+          <button
+            type="button"
+            className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+              profileTab === 'posts' ? 'border-b-2 border-brand-violetSoft text-ink' : 'text-ink-muted hover:text-ink'
+            }`}
+            onClick={() => setProfileTab('posts')}
+          >
+            Posts
+          </button>
+          <button
+            type="button"
+            className={`flex items-center gap-1.5 px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+              profileTab === 'listings' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
+            }`}
+            onClick={() => setProfileTab('listings')}
+          >
+            <BriefcaseIcon size={14} />
+            Listings
+          </button>
+        </div>
         <Feed
-          posts={posts}
+          posts={profilePosts}
           loading={loading}
           error={error}
           onTipped={refreshAll}
@@ -349,9 +381,13 @@ export function ProfilePage({
           onMessageProvider={onMessage}
           highlightPostId={highlightPostId}
           emptyMessage={
-            isOwnProfile
-              ? 'No posts yet. Try creating your first post on Home.'
-              : 'This account has no posts yet.'
+            profileTab === 'listings'
+              ? isOwnProfile
+                ? 'No skill listings yet. Post one from Home.'
+                : 'This account has no skill listings yet.'
+              : isOwnProfile
+                ? 'No posts yet. Try creating your first post on Home.'
+                : 'This account has no posts yet.'
           }
         />
       </div>

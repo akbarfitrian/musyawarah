@@ -4,7 +4,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { VerifiedBadge } from './VerifiedBadge'
-import { BellIcon, CoinIcon, RepostIcon, UserPlusIcon } from './icons'
+import { BellIcon, CoinIcon, LockIcon, RepostIcon, UserPlusIcon } from './icons'
 import type { AppNotification } from '../types'
 
 function NotificationTypeIcon({ type }: { type: AppNotification['type'] }) {
@@ -19,6 +19,13 @@ function NotificationTypeIcon({ type }: { type: AppNotification['type'] }) {
     return (
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-cyan/15 text-brand-cyan">
         <RepostIcon size={16} />
+      </span>
+    )
+  }
+  if (type === 'order_reminder') {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger">
+        <LockIcon size={15} />
       </span>
     )
   }
@@ -43,7 +50,9 @@ function NotificationRow({
       ? 'followed you'
       : notification.type === 'repost'
         ? 'reposted your post'
-        : `tipped you ${notification.amount ?? 0} UCT`
+        : notification.type === 'order_reminder'
+          ? 'has a transaction waiting on confirmation'
+          : `tipped you ${notification.amount ?? 0} UCT`
 
   function visit() {
     onVisitProfile?.(wallet)
@@ -100,6 +109,9 @@ function NotificationRow({
         </div>
         {notification.post_preview && (
           <p className="mt-0.5 line-clamp-1 text-[13px] text-ink-muted">{notification.post_preview}</p>
+        )}
+        {notification.body && (
+          <p className="mt-0.5 line-clamp-2 text-[13px] text-ink-muted">{notification.body}</p>
         )}
       </div>
 

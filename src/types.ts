@@ -55,6 +55,17 @@ export interface Post {
    * | undefined kalau free) -- dipakai buat nampilin badge centang/berlian
    * di samping username. Lihat src/lib/verification.ts. */
   author_verification_tier?: VerificationTier
+  /** Jumlah baris `orders` yang nge-reference post ini, APAPUN statusnya
+   * (termasuk 'cancelled' -- barisnya tetap ada, cuma status-nya berubah).
+   * Cuma keisi buat listing. Dipakai buat nge-gate tombol Delete: `orders.
+   * post_id` punya FK `on delete restrict`, jadi begitu angkanya > 0, post
+   * ini SELAMANYA gak bisa dihapus lewat delete_post() -- lihat
+   * 007_marketplace_negotiation.sql:57. */
+  order_count?: number
+  /** Subset dari order_count -- cuma yang statusnya 'completed' atau
+   * 'released' (transaksi yang beneran kelar, bukan cuma pending/cancelled).
+   * Dipakai buat badge "X terjual" di kartu listing. */
+  completed_order_count?: number
 }
 
 export interface Tip {
@@ -102,6 +113,9 @@ export type OrderStatus = 'pending' | 'locked' | 'completed' | 'released' | 'dis
 export interface OrderUpdatePayload {
   order_id: string
   status: OrderStatus
+  /** Cuma keisi di pesan yang dibikin `mark_order_delivered` (015) --
+   * link deliverable yang provider taro pas order masih 'locked'. */
+  deliverable_url?: string
 }
 
 export interface Message {
@@ -110,6 +124,10 @@ export interface Message {
   receiver_wallet: string
   content: string
   read: boolean
+  /** True kalau pesan ini udah dihapus pengirimnya (delete_message, 014) --
+   * content-nya udah dikosongin di server, klien render placeholder "Message
+   * deleted" buat baris ini. Cuma bisa true buat kind === 'text'. */
+  deleted: boolean
   created_at: string
   kind: MessageKind
   payload: ListingRefPayload | OfferPayload | OrderUpdatePayload | null
@@ -132,6 +150,35 @@ export interface Order {
   completed_at: string | null
   released_at: string | null
   cancelled_at: string | null
+  /** Link hasil kerjaan yang provider taro (015, `mark_order_delivered`) --
+   * null selama belum ada yang diisi. Bentuknya link (Drive/GitHub/Figma/dst)
+   * karena platform ini sendiri gak punya file storage buat deliverable.
+   * Ditimpa lagi oleh `submit_deliverable_revision` (019) kalau seller balas
+   * dispute dengan link baru. */
+  deliverable_url: string | null
+  delivered_at: string | null
+  /** Kapan order ini pindah ke status 'disputed' terakhir kali (017 auto-
+   * flag ATAU 019 dispute manual buyer) -- di-NULL-kan lagi begitu seller
+   * submit revisi (019), jadi cuma keisi SELAMA order MASIH 'disputed'. */
+  disputed_at: string | null
+  /** Kenapa order ini disputed -- 'seller_no_delivery_24h' (017, auto,
+   * seller nggak submit apa-apa dalam 24 jam) atau 'buyer_quality_dispute'
+   * (019, buyer aktif nolak hasil kerjaan). Sama kayak disputed_at, di-NULL-
+   * kan lagi begitu seller submit revisi. */
+  dispute_reason: 'seller_no_delivery_24h' | 'buyer_quality_dispute' | null
+  /** Alasan dispute dalam kata-kata buyer sendiri (019) -- cuma keisi buat
+   * dispute_reason 'buyer_quality_dispute', null buat auto-flag 017. */
+  dispute_note: string | null
+  /** True kalau order ini SUDAH PERNAH dipakai jatah dispute-nya (020) --
+   * BEDA dari disputed_at/dispute_reason (yang di-null-kan lagi tiap seller
+   * revisi): kolom ini permanen begitu jadi true, dipakai buat nyembunyiin
+   * tombol "Dispute" secara permanen meski order balik 'locked' lagi. */
+  dispute_used: boolean
+  /** 'buyer_no_confirm_72h' kalau order ini di-auto-complete sistem (018)
+   * karena buyer nggak kunjung confirm dalam 72 jam sejak delivered_at --
+   * null kalau buyer confirm manual sendiri. Dipakai UI buat bedain visual
+   * "completed manual" vs "completed otomatis". */
+  completion_reason: 'buyer_no_confirm_72h' | null
 }
 
 // --- Marketplace reviews (draft §1d) — Fase 4 ---
@@ -184,7 +231,7 @@ export interface Follow {
   created_at: string
 }
 
-export type NotificationType = 'follow' | 'repost' | 'tip'
+export type NotificationType = 'follow' | 'repost' | 'tip' | 'order_reminder'
 
 export interface AppNotification {
   id: string
@@ -195,8 +242,13 @@ export interface AppNotification {
   type: NotificationType
   /** Keisi buat repost & tip (post yang direpost/ditip). Null buat follow. */
   post_id: string | null
-  /** Keisi cuma buat tip (jumlah UCT). Null buat follow/repost. */
+  /** Keisi buat tip (jumlah UCT) & order_reminder (jumlah order). Null buat follow/repost. */
   amount: number | null
+  /** Keisi cuma buat order_reminder (order escrow yang lagi diingetin). Null buat tipe lain. */
+  order_id: string | null
+  /** Teks detail transaksi yang udah jadi, dikomposisi di server (cuma keisi buat
+   * order_reminder -- lihat send_escrow_confirmation_reminders() di 013). Null buat tipe lain. */
+  body: string | null
   read: boolean
   created_at: string
   // computed client-side, bukan kolom asli -- lihat useNotifications.ts:

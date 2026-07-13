@@ -124,6 +124,22 @@ export async function confirmOrderComplete(orderId: string, buyerWallet: string)
   if (error) throw error
 }
 
+/** Provider klik "Mark as delivered" di chip order_update status 'locked'
+ * (Fase 3.5, 015) -- taro LINK hasil kerjaan (bukan upload file, platform
+ * ini gak punya storage buat itu) biar buyer keliatan jelas apa yang mau
+ * di-confirm, dipisah dari chat bebas. Cuma bisa sekali per order (RPC nolak
+ * kalau deliverable_url udah keisi). Gak ngeblok confirm_order_complete --
+ * buyer tetap boleh confirm kapan aja selama 'locked', ini murni buat
+ * kejelasan, bukan gerbang wajib. */
+export async function markOrderDelivered(orderId: string, providerWallet: string, deliverableUrl: string) {
+  const { error } = await supabase.rpc('mark_order_delivered', {
+    p_order_id: orderId,
+    p_provider_wallet: providerWallet,
+    p_deliverable_url: deliverableUrl,
+  })
+  if (error) throw error
+}
+
 /** Buyer ATAU provider batalin order yang masih 'pending' (belum ada dana di
  * escrow sama sekali) -- lihat 011_cancel_and_supersede_orders.sql. Order
  * yang udah 'locked' gak bisa lewat sini (harus dispute manual). */
@@ -131,6 +147,36 @@ export async function cancelOrder(orderId: string, wallet: string) {
   const { error } = await supabase.rpc('cancel_order', {
     p_order_id: orderId,
     p_wallet: wallet,
+  })
+  if (error) throw error
+}
+
+/** Buyer klik "Dispute" di chip order_update status 'locked' (setelah
+ * deliverable ada) -- 019/020. HANYA bisa sekali per order (RPC nolak kalau
+ * `dispute_used` udah true); order pindah ke 'disputed', nunggu seller balas
+ * pakai `submitDeliverableRevision`. Chip baru ("Buyer disputed...")
+ * otomatis muncul dari RPC itu sendiri, tinggal refresh thread. */
+export async function disputeOrder(orderId: string, buyerWallet: string, reason: string) {
+  const { error } = await supabase.rpc('dispute_order', {
+    p_order_id: orderId,
+    p_buyer_wallet: buyerWallet,
+    p_reason: reason,
+  })
+  if (error) throw error
+}
+
+/** Provider klik "Submit revision" di chip order_update status 'disputed'
+ * (019) -- BEDA dari `markOrderDelivered` (015, cuma sekali & cuma kalau
+ * deliverable_url masih kosong): ini KHUSUS buat NIMPA deliverable_url yang
+ * sudah ada sebagai balasan dispute. Order balik ke 'locked', jam konfirmasi
+ * 72 jam (018) restart dari titik ini. Boleh dipanggil buat kedua jenis
+ * dispute (manual 019 maupun auto-flag non-delivery 017) -- RPC-nya cuma
+ * syaratin status = 'disputed', gak peduli dispute_reason apa. */
+export async function submitDeliverableRevision(orderId: string, providerWallet: string, deliverableUrl: string) {
+  const { error } = await supabase.rpc('submit_deliverable_revision', {
+    p_order_id: orderId,
+    p_provider_wallet: providerWallet,
+    p_deliverable_url: deliverableUrl,
   })
   if (error) throw error
 }
