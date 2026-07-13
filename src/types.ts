@@ -107,8 +107,11 @@ export interface OfferPayload {
  * ('locked' | 'completed' | 'released' | 'disputed') dipakai mulai Fase 3.
  * 'cancelled' ditambah di 011_cancel_and_supersede_orders.sql -- order
  * 'pending' yang dibatalkan manual (cancel_order) atau otomatis di-supersede
- * pas offer baru buat pasangan post+buyer+provider yang sama di-accept. */
-export type OrderStatus = 'pending' | 'locked' | 'completed' | 'released' | 'disputed' | 'cancelled'
+ * pas offer baru buat pasangan post+buyer+provider yang sama di-accept.
+ * 'refunded' ditambah di 021_auto_refund_non_delivery.sql -- order 'disputed'
+ * (non-delivery) yang udah lewat window kedua & di-refund manual sama
+ * operator lewat mark_order_refunded(). */
+export type OrderStatus = 'pending' | 'locked' | 'completed' | 'released' | 'disputed' | 'cancelled' | 'refunded'
 
 export interface OrderUpdatePayload {
   order_id: string
@@ -179,6 +182,15 @@ export interface Order {
    * null kalau buyer confirm manual sendiri. Dipakai UI buat bedain visual
    * "completed manual" vs "completed otomatis". */
   completion_reason: 'buyer_no_confirm_72h' | null
+  /** Kapan `auto_flag_refund_eligible_disputes()` (021) nandain order ini
+   * siap-refund -- cuma keisi buat order 'disputed' yang non-delivery
+   * (`seller_no_delivery_24h`) dan udah lewat 24 jam KEDUA tanpa seller
+   * submit revisi. `mark_order_refunded` nolak jalan kalau ini masih null.
+   * Null lagi begitu seller submit revisi (order balik 'locked'). */
+  refund_flagged_at: string | null
+  /** Kapan operator beneran ngirim refund lewat `mark_order_refunded` (021)
+   * -- cuma keisi begitu status udah 'refunded'. */
+  refunded_at: string | null
 }
 
 // --- Marketplace reviews (draft §1d) — Fase 4 ---

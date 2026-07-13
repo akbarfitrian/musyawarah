@@ -194,6 +194,22 @@ export async function markOrderReleased(orderId: string, operatorWallet: string)
   if (error) throw error
 }
 
+/** Operator klik "Refund" di AdminPage.tsx (021.1) -- paralel persis sama
+ * `markOrderReleased` di atas: RPC (`mark_order_refunded`, 021) divalidasi
+ * ketat di server terhadap TREASURY_WALLET, jadi `operatorWallet` di sini
+ * cuma buat ngirim parameter, bukan lapisan otorisasi. RPC-nya sendiri juga
+ * nolak kalau order belum ditandai `refund_flagged_at` (belum lewat window
+ * 48 jam dari 021) -- error itu ditampilin apa adanya ke operator lewat
+ * `refundError` di AdminPage, bukan di-guard duluan di sini, biar satu-
+ * satunya sumber kebenaran soal "boleh refund atau belum" tetap di server. */
+export async function markOrderRefunded(orderId: string, operatorWallet: string) {
+  const { error } = await supabase.rpc('mark_order_refunded', {
+    p_order_id: orderId,
+    p_operator_wallet: operatorWallet,
+  })
+  if (error) throw error
+}
+
 export interface CompletedOrderRow extends Order {
   listing_title: string | null
 }
@@ -244,6 +260,64 @@ export function useCompletedOrders() {
       setOrders(rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null })))
     } catch (e) {
       setError('Failed to load completed orders.')
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  return { orders, loading, error, refresh }
+}
+
+/** Semua order status 'disputed' yang `refund_flagged_at` udah keisi (021,
+ * lihat auto_flag_refund_eligible_disputes) -- kandidat "nunggu refund
+ * manual" yang ditampilin di AdminPage.tsx buat operator klik Refund.
+ * Struktur & alasan query-nya sama persis kayak `useCompletedOrders` di
+ * atas: baca langsung tabel `orders` (udah public-select, 007), halaman itu
+ * sendiri yang jadi gerbang otorisasi UI, RPC (`mark_order_refunded`) tetap
+ * divalidasi ketat di server terlepas dari sini. */
+export function useRefundEligibleOrders() {
+  const [orders, setOrders] = useState<CompletedOrderRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data, error: queryError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'disputed')
+        .not('refund_flagged_at', 'is', null)
+        .order('refund_flagged_at', { ascending: true })
+
+      if (queryError) throw queryError
+      const rows = (data ?? []) as Order[]
+
+      const postIds = [...new Set(rows.map((o) => o.post_id))]
+      let titleById: Record<string, string | null> = {}
+      if (postIds.length > 0) {
+        const { data: postsData, error: postsError } = await supabase
+          .from('posts')
+          .select('id, listing_title')
+          .in('id', postIds)
+        if (postsError) {
+          console.warn('[MUSYAWARAH] Gagal ngambil judul listing buat AdminPage (refund):', postsError)
+        } else {
+          titleById = Object.fromEntries(
+            ((postsData ?? []) as { id: string; listing_title: string | null }[]).map((p) => [p.id, p.listing_title])
+          )
+        }
+      }
+
+      setOrders(rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null })))
+    } catch (e) {
+      setError('Failed to load refund-eligible orders.')
       console.error(e)
     } finally {
       setLoading(false)

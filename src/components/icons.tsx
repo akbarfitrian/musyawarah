@@ -603,6 +603,23 @@ export function LockIcon({ size = 14 }: IconProps) {
   )
 }
 
+/** Ikon panah muter balik -- dipakai buat tombol "Refund" di AdminPage
+ * (021.1), paralel sama LockIcon buat tombol "Release". */
+export function RefundIcon({ size = 14 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M6 8.5H15a5 5 0 015 5 5 5 0 01-5 5H9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M9.5 5L6 8.5l3.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /** Ikon bintang -- dipakai buat rating provider (Fase 4). `filled` nentuin
  * solid (rating aktif/dipilih) atau outline (rating kosong). */
 export function StarIcon({ size = 14, filled = false }: IconProps) {

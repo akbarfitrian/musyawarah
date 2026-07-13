@@ -374,7 +374,7 @@
         <div class="market-step">
           <div class="market-num">05</div>
           <h3 class="market-title">Confirm or dispute</h3>
-          <p class="market-desc">Buyer confirms, or disputes once with a reason if the work isn't right — the provider can answer with a revised link, which reopens confirmation.</p>
+          <p class="market-desc">Buyer confirms, or disputes once with a reason if the work isn't right — the provider can answer with a revised link, which reopens confirmation. A provider who never delivers gets auto-disputed, then auto-flagged for a refund if they stay silent.</p>
         </div>
         <div class="market-step">
           <div class="market-num">06</div>
@@ -383,7 +383,7 @@
         </div>
       </div>
       <div class="market-note reveal">
-        <span class="mono">Trust model:</span> escrow is custodial, not trustless — the same treasury wallet used for verification payments holds locked funds until release. <span class="mono">Nothing gets stuck:</span> if a provider never delivers, the order is auto-flagged for review after 24 hours; if a buyer never confirms a delivered order, it auto-completes after 72 hours.
+        <span class="mono">Trust model:</span> escrow is custodial, not trustless — the same treasury wallet used for verification payments holds locked funds until release. <span class="mono">Nothing gets stuck:</span> if a provider never delivers, the order is auto-flagged for dispute after 24 hours, then flagged for an operator refund after another 24 hours of silence; if a buyer never confirms a delivered order, it auto-completes after 72 hours.
       </div>
     </div>
   </section>

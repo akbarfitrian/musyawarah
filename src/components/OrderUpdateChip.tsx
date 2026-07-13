@@ -22,6 +22,7 @@ const CHIP_STYLE: Record<OrderStatus, string> = {
   released: 'bg-emerald-700/15 text-emerald-700',
   disputed: 'bg-surface-hover text-ink-muted',
   cancelled: 'bg-surface-hover text-ink-faint line-through',
+  refunded: 'bg-danger/15 text-danger',
 }
 
 export function OrderUpdateChip({
@@ -419,6 +420,15 @@ export function OrderUpdateChip({
             Waiting for a manual payout from the operator.
           </p>
         </div>
+      )}
+
+      {/* refunded (021): status terminal, paralel sama blok 'completed' di
+       * atas -- histori aja, gak ada tombol lagi (refund sendiri udah
+       * dieksekusi operator lewat AdminPage, lihat mark_order_refunded). */}
+      {isCurrentStatus && messageStatus === 'refunded' && (
+        <p className="max-w-[85%] text-center text-[11px] text-ink-faint">
+          Escrowed payment refunded to the buyer by an operator.
+        </p>
       )}
 
       {/* released: penanda "order boleh direview" -- kedua pihak (buyer &
