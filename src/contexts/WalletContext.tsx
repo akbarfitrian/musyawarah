@@ -15,6 +15,7 @@ import {
   formatRecipient,
   getDappDescriptor,
   identityToHandle,
+  isValidHexCoinId,
   parseFiatTotal,
   parseWalletAssets,
   toBaseUnits,
@@ -96,8 +97,14 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
     const list = Array.isArray(assets) ? assets : (assets as { assets?: unknown })?.assets
     const uct = findUct(list)
     const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
-    if (typeof coinId === 'string') {
+    // Validasi format di sini juga -- kalau field yang ketangkep ternyata
+    // bukan hex beneran (mis. wallet naro symbol string di `id`), jangan
+    // dipakai, biar nggak lolos ke intent `send` dan gagal belakangan.
+    if (isValidHexCoinId(coinId)) {
       return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
+    }
+    if (typeof coinId === 'string') {
+      console.warn('[MUSYAWARAH] sphere_getAssets nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
     }
   } catch (err) {
     console.warn('[MUSYAWARAH] sphere_getAssets gagal, coba sphere_getTokens buat cari UCT.', err)
@@ -108,22 +115,34 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
     const list = Array.isArray(tokens) ? tokens : (tokens as { tokens?: unknown })?.tokens
     const uct = findUct(list)
     const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
-    if (typeof coinId === 'string') {
+    if (isValidHexCoinId(coinId)) {
       return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
+    }
+    if (typeof coinId === 'string') {
+      console.warn('[MUSYAWARAH] sphere_getTokens nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
     }
   } catch (err) {
     console.warn('[MUSYAWARAH] sphere_getTokens juga gagal cari UCT.', err)
   }
 
-  // Fallback terakhir. Protocol reference minta coinId 64-hex, jadi kalau
-  // intent `send` di bawah nolak, isi VITE_SPHERE_UCT_COIN_ID di .env.local
-  // dengan coinId hex yang bener buat network yang dipakai.
+  // Fallback terakhir lewat override manual di .env.local. WAJIB divalidasi
+  // -- sebelumnya di sini ada bug: kalau override kosong, kodenya diam-diam
+  // kirim literal string "UCT" sebagai coinId ke wallet, yang otomatis
+  // ditolak wallet dengan error mentah "coinId must be lowercase even-length
+  // hex" pas user klik "Lock escrow". Sekarang dilempar sebagai error yang
+  // jelas di sisi kita, ketangkep sama try/catch di pemanggil (sendTip ->
+  // lockEscrowOrder di MessagesPage.tsx) dan ditampilin ke user.
   const override = import.meta.env.VITE_SPHERE_UCT_COIN_ID as string | undefined
-  console.warn(
-    '[MUSYAWARAH] Nggak nemu coinId UCT dari wallet, pakai fallback.',
-    override ? '(pakai VITE_SPHERE_UCT_COIN_ID)' : '(pakai symbol "UCT" apa adanya — mungkin ditolak wallet)'
+  if (isValidHexCoinId(override)) {
+    console.warn('[MUSYAWARAH] Nggak nemu coinId UCT dari wallet, pakai VITE_SPHERE_UCT_COIN_ID.')
+    return { coinId: override, decimals: DEFAULT_UCT_DECIMALS }
+  }
+
+  throw new Error(
+    override
+      ? 'VITE_SPHERE_UCT_COIN_ID di .env.local bukan hex lowercase genap panjangnya. Cek lagi nilainya.'
+      : 'Nggak bisa nemuin coinId token UCT dari wallet. Isi VITE_SPHERE_UCT_COIN_ID di .env.local dengan coinId hex UCT yang bener buat network ini, lalu deploy ulang.'
   )
-  return { coinId: override ?? 'UCT', decimals: DEFAULT_UCT_DECIMALS }
 }
 
 /**
