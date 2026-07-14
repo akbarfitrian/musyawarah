@@ -4,9 +4,6 @@ import { useWallet } from '../contexts/WalletContext'
 import type { VerificationTier } from '../lib/verification'
 import type { Post, Repost, Tip } from '../types'
 
-/** Provider tutup/buka listing tanpa hapus post-nya (Fase 4, `MarketplacePage`
- * sub-tab "My Listings") -- panggil `set_listing_active` RPC, `posts.update`
- * langsung sudah dicabut haknya dari client sejak 002_harden_writes.sql. */
 export async function setListingActive(wallet: string, postId: string, active: boolean) {
   const { error } = await supabase.rpc('set_listing_active', {
     p_wallet: wallet,
@@ -22,12 +19,6 @@ export function usePosts(authorWallet?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // `showSpinner` cuma true buat load pertama kali / manual refresh (mis.
-  // abis nge-post sendiri). Auto-sync di bawah (polling + refresh pas tab
-  // difokusin lagi) manggil versi silent-nya biar post baru dari user lain
-  // numpuk ke feed tanpa nge-reset `loading` -- soalnya kalau di-toggle tiap
-  // beberapa detik, feed jadi keliatan "berkedip" / posisi scroll kebuang ke
-  // atas padahal belum tentu ada post baru.
   const load = useCallback(
     async (showSpinner: boolean) => {
       if (showSpinner) setLoading(true)
@@ -43,15 +34,9 @@ export function usePosts(authorWallet?: string) {
 
         if (postsError) throw postsError
 
-        // sort_at dipakai buat nge-urutin feed: post biasa diurutin dari waktu
-        // dia dibikin, tapi post yang muncul di profil karena di-repost diurutin
-        // dari waktu repost-nya (biar "naik" ke atas kayak retweet di Twitter).
         type PostWithSort = Post & { sort_at: string }
         let combined: PostWithSort[] = (authoredData ?? []).map((p) => ({ ...p, sort_at: p.created_at }))
 
-        // Kalau lagi liat profil orang/diri sendiri (authorWallet keisi), post
-        // yang di-repost sama wallet itu juga harus nongol di profilnya —
-        // sama kayak retweet yang nampil di profil Twitter.
         if (authorWallet) {
           const { data: myRepostsData, error: myRepostsError } = await supabase
             .from('reposts')
@@ -125,8 +110,6 @@ export function usePosts(authorWallet?: string) {
             .in('post_id', ids)
 
           if (repostsError) {
-            // "ala kadarnya" — kalau query repost gagal, feed tetap jalan
-            // tanpa hitungan repost, errornya cuma di-log.
             console.warn('[MUSYAWARAH] Gagal ngambil data repost:', repostsError)
           } else {
             repostTotals = (repostsData as Pick<Repost, 'post_id' | 'wallet_address'>[]).reduce(
@@ -152,14 +135,6 @@ export function usePosts(authorWallet?: string) {
         let completedOrderCounts: Record<string, number> = {}
         const listingIds = postsData.filter((p) => p.is_listing).map((p) => p.id)
         if (listingIds.length > 0) {
-          // Dipakai buat 2 hal: (1) badge "X terjual" di kartu listing --
-          // cuma hitung status 'completed'/'released' (lihat 009_marketplace_
-          // reviews.sql:75, itu juga syarat boleh direview), dan (2) nge-gate
-          // tombol Delete di PostCard -- `orders.post_id` FK-nya `on delete
-          // restrict` (007_marketplace_negotiation.sql:57), jadi listing yang
-          // punya order APAPUN statusnya gak akan pernah bisa dihapus.
-          // "Ala kadarnya" -- kalau query ini gagal, feed tetap jalan tanpa
-          // badge/gating-nya, errornya cuma di-log.
           const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select('post_id, status')
@@ -178,8 +153,6 @@ export function usePosts(authorWallet?: string) {
         }
 
         if (wallets.length > 0) {
-          // Foto profil ("ala kadarnya" — kalau query ini gagal, feed tetap
-          // jalan pakai avatar warna generated, jadi errornya cuma di-log).
           const { data: profilesData, error: profilesError } = await supabase
             .from('profiles')
             .select('wallet_address, avatar_url')
@@ -197,10 +170,6 @@ export function usePosts(authorWallet?: string) {
             )
           }
 
-          // Tier verifikasi ("ala kadarnya" -- kalau query ini gagal, feed
-          // tetap jalan tanpa badge centang/berlian, errornya cuma di-log).
-          // Langganan yang udah lewat expires_at-nya nggak dianggap aktif lagi
-          // (badge-nya nggak ditampilin) -- sama kayak logic di useVerification.ts.
           const { data: verificationsData, error: verificationsError } = await supabase
             .from('verifications')
             .select('wallet_address, tier, expires_at')
@@ -231,10 +200,6 @@ export function usePosts(authorWallet?: string) {
           completed_order_count: completedOrderCounts[p.id] ?? 0,
         }))
 
-        // Sama kayak useThread/useConversations -- cuma nge-set state kalau
-        // beneran ada perubahan (post baru, tip/repost total berubah, dst),
-        // biar polling silent-nya nggak nge-trigger re-render/scroll reset
-        // kalau nggak ada yang baru.
         setPosts((prev) => {
           const sameLength = prev.length === withTotals.length
           const sameContent =
@@ -268,10 +233,6 @@ export function usePosts(authorWallet?: string) {
     refresh()
   }, [refresh])
 
-  // Auto-sync: feed di-poll tiap 8 detik biar post baru dari user lain
-  // langsung nongol tanpa harus pindah-pindah tab/fitur biar ke-refresh.
-  // Di-pause pas tab nggak aktif biar hemat request, dan langsung nge-sync
-  // begitu tab difokusin/di-switch lagi.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') load(false)

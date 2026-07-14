@@ -58,9 +58,6 @@ function NotificationRow({
     onVisitProfile?.(wallet)
   }
 
-  // Div (bukan <button>) buat baris ini -- avatar di dalamnya juga butuh jadi
-  // elemen interaktif sendiri, sama alasannya kayak ConversationRow di
-  // MessagesPage.tsx (<button> nggak boleh nested di dalam <button> lain).
   return (
     <div
       role="button"
@@ -123,15 +120,12 @@ function NotificationRow({
 export function NotificationsPage({
   onVisitProfile,
 }: {
-  /** Dipanggil pas avatar/username atau baris notifikasi diklik. */
   onVisitProfile?: (walletAddress: string) => void
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()
   const { notifications, loading, error, unreadCount, markAllRead } = useNotifications()
   const markedRef = useRef(false)
 
-  // Tandain semua notif sebagai udah dibaca pas halaman ini kebuka, sama
-  // kayak pola "tandain dibaca pas thread dibuka" di ThreadView (MessagesPage).
   useEffect(() => {
     if (!loading && unreadCount > 0 && !markedRef.current) {
       markedRef.current = true

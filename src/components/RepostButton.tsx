@@ -12,7 +12,6 @@ export function RepostButton({
   onReposted,
 }: {
   postId: string
-  /** Wallet penulis post asli -- penerima notifikasi repost. */
   postAuthorWallet: string
   isOwnPost: boolean
   repostTotal: number
@@ -41,9 +40,6 @@ export function RepostButton({
 
     setBusy(true)
     try {
-      // toggle_repost() di server (supabase/002_harden_writes.sql) yang
-      // nge-cek post-nya beneran ada, "gak bisa repost post sendiri", dan
-      // bikin/hapus notifikasinya sekalian, atomik dalam satu function call.
       const { error } = await supabase.rpc('toggle_repost', {
         p_wallet: walletAddress,
         p_post_id: postId,

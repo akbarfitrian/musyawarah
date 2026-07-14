@@ -3,6 +3,8 @@ import { useWallet } from '../contexts/WalletContext'
 import { useConversations, useThread, useListingSnapshots, useProviderListings } from '../hooks/useMessages'
 import {
   TREASURY_WALLET,
+  beginEscrowLock,
+  abortEscrowLock,
   cancelOrder,
   confirmOrderComplete,
   lockEscrowOrder,
@@ -54,9 +56,6 @@ function ConversationRow({
   onClick: () => void
   onVisitProfile?: (walletAddress: string) => void
 }) {
-  // Div (bukan <button>) buat baris ini, soalnya avatar & username di
-  // dalamnya juga butuh jadi elemen interaktif sendiri (buka profil) --
-  // <button> nggak boleh nested di dalam <button> lain.
   return (
     <div
       role="button"
@@ -154,8 +153,6 @@ function NewMessageForm({ onStart, onCancel }: { onStart: (wallet: string) => vo
   )
 }
 
-/** Kartu ringkas listing (dipakai di bubble `listing_ref` & sebagai header
- * kecil di bubble `offer`) -- title/harga/kategori, klik buat buka permalink. */
 function ListingMiniCard({
   listing,
   onVisitPost,
@@ -262,23 +259,15 @@ function MessageBubble({
   onCancelOrder: (order: Order) => void
   cancellingOrderId: string | null
   cancelError: { orderId: string; message: string } | null
-  /** Buyer dispute delivery yang belum memuaskan (019/020) -- 1x per order. */
   onDisputeOrder: (order: Order, reason: string) => void
   disputingOrderId: string | null
   disputeError: { orderId: string; message: string } | null
-  /** Provider balas dispute dengan link baru (019). */
   onSubmitRevision: (order: Order, url: string) => void
   revisingOrderId: string | null
   revisionError: { orderId: string; message: string } | null
-  /** Hapus pesan `text` milik sendiri (014) -- cuma dipasang buat `isMine`
-   * di titik render-nya, lihat bawah. */
   onDeleteMessage?: (messageId: string) => void
   deletingMessageId?: string | null
 }) {
-  // Pesan sistem (`order_update`) dipusatkan sebagai chip kecil, bukan
-  // bubble kiri/kanan -- ini bukan pesan dari salah satu peserta, jadi gak
-  // pas kalau ditaruh di salah satu sisi. Render & tombol aksi kontekstual
-  // semua status disatuin di 1 komponen (Fase 3.4) -- lihat OrderUpdateChip.tsx.
   if (message.kind === 'order_update') {
     return (
       <OrderUpdateChip
@@ -392,7 +381,6 @@ function MessageBubble({
     )
   }
 
-  // kind === 'text'
   if (message.deleted) {
     return bubbleShell(
       <span className={`italic ${isMine ? 'text-accent-contrast/70' : 'text-ink-faint'}`}>
@@ -435,12 +423,6 @@ function MessageBubble({
   )
 }
 
-/** Dropdown buat milih listing mana yang mau ditawar, muncul di atas
- * `OfferForm` cuma kalau lawan bicara punya LEBIH DARI 1 listing aktif --
- * biar gak maksa mikir tiap kali cuma ada 1 pilihan. Gantiin skema lama yang
- * ngunci "Make offer" ke kartu listing_ref/offer PALING BARU di riwayat
- * chat, yang bisa aja udah nggak aktif walau providernya sebenernya masih
- * punya listing lain yang aktif. */
 function ListingSelector({
   listings,
   selectedId,
@@ -468,11 +450,6 @@ function ListingSelector({
   )
 }
 
-/** Form kecil buat kirim tawaran harga -- muncul di atas kotak ketik pas
- * user klik "Make offer". `listing` di sini SELALU salah satu listing yang
- * MASIH AKTIF (lihat `offerCandidates` di ThreadView) -- kalau ada lebih
- * dari satu kandidat, `ListingSelector` di atas form ini yang nentuin
- * listing mana yang lagi dipilih. */
 function OfferForm({
   listing,
   onSend,
@@ -524,7 +501,6 @@ function OfferForm({
   )
 }
 
-
 function ThreadView({
   otherWallet,
   onBack,
@@ -565,13 +541,7 @@ function ThreadView({
   const [disputeError, setDisputeError] = useState<{ orderId: string; message: string } | null>(null)
   const [revisingOrderId, setRevisingOrderId] = useState<string | null>(null)
   const [revisionError, setRevisionError] = useState<{ orderId: string; message: string } | null>(null)
-  // Ditambah begitu submit sukses -- `useMyReviewedOrderIds` cuma nge-fetch
-  // ulang kalau daftar order_id-nya berubah, jadi status "udah direview"
-  // buat order yang sama gak otomatis ke-refresh cuma dari refresh() thread.
   const [locallyReviewedIds, setLocallyReviewedIds] = useState<Set<string>>(new Set())
-  // Order yang form rating-nya lagi disembunyiin ("Not now") di device ini --
-  // dicek ulang dari localStorage tiap `releasedOrderIds` berubah, lihat
-  // utils/reviewDismissal.ts.
   const [dismissedReviewIds, setDismissedReviewIds] = useState<Set<string>>(new Set())
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -593,19 +563,13 @@ function ThreadView({
       }
       return changed ? next : prev
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myWallet, releasedOrderIds.join(',')])
 
-  // Ganti lawan bicara -> reset pilihan/form tawaran lama, biar gak nyangkut
-  // ke listing dari thread sebelumnya kalau ThreadView-nya kebetulan gak
-  // ke-unmount pas pindah percakapan.
   useEffect(() => {
     setShowOfferForm(false)
     setSelectedOfferListingId(null)
   }, [otherWallet])
 
-  // Listing yang lagi "dibahas" di thread ini -- dari kartu listing_ref/offer
-  // PALING BARU.
   const lastListingMessage = [...messages].reverse().find((m) => m.kind === 'listing_ref' || m.kind === 'offer')
   const lastListingPostId = lastListingMessage
     ? ((lastListingMessage.payload as { post_id: string }).post_id)
@@ -613,20 +577,6 @@ function ThreadView({
   const referencedListing = lastListingPostId ? listingSnapshots[lastListingPostId] : undefined
   const referencedListingIsActive = referencedListing?.listing_active === true
 
-  // Kandidat listing yang BOLEH ditawar di thread ini -- ini yang beneran
-  // nentuin boleh/nggaknya bikin tawaran baru (bukan "ada kartu listing di
-  // riwayat chat", kayak logic lama):
-  //  1. Listing yang lagi dibahas (referencedListing), SELAMA masih aktif --
-  //     ini juga yang bikin provider tetap bisa counter-offer listingnya
-  //     sendiri yang lagi dinego (listing itu bisa aja punyaku sendiri kalau
-  //     akulah provider-nya, bukan cuma punya lawan bicara).
-  //  2. Listing aktif LAIN milik lawan bicara (`offerableListings`, query
-  //     langsung ke `posts` lewat useProviderListings -- bukan dari riwayat
-  //     chat) -- ini yang dipakai buat "pindah" ke listing lain kalau lawan
-  //     bicara punya lebih dari satu, lewat ListingSelector di bawah.
-  // Kalau providernya udah nonaktifin SEMUA listingnya (termasuk yang lagi
-  // dibahas), daftar ini kosong dan tombol "Make offer" disembunyikan --
-  // biarpun ada kartu listing_ref/offer lama yang masih nempel di chat.
   const offerCandidates: ListingSnapshot[] = [
     ...(referencedListingIsActive && referencedListing ? [referencedListing] : []),
     ...offerableListings.filter((l) => l.id !== referencedListing?.id),
@@ -643,7 +593,7 @@ function ThreadView({
       await sendMessage(trimmed)
     } catch (e) {
       console.error('[MUSYAWARAH] Gagal ngirim pesan:', e)
-      setDraft(trimmed) // balikin draft-nya biar nggak ilang kalau gagal kirim
+      setDraft(trimmed)
     }
   }
 
@@ -690,10 +640,6 @@ function ThreadView({
     }
   }
 
-  /** Buyer klik "Lock escrow" di chip order_update -- kirim dana lewat
-   * sendTip() ke TREASURY_WALLET, lalu catat lock-nya lewat lock_escrow_order
-   * RPC. Chip baru (`order_update: locked`) otomatis muncul dari RPC itu
-   * sendiri (lihat 008_marketplace_escrow_rpc.sql), tinggal refresh thread. */
   async function handleLockEscrow(order: Order) {
     if (!myWallet) return
     setLockError(null)
@@ -706,12 +652,25 @@ function ThreadView({
     }
     setLockingOrderId(order.id)
     try {
-      const { txHash } = await sendTip(TREASURY_WALLET, order.amount)
-      // sendTip() sekarang selalu ngebalikin identifier non-null (fallback
-      // client-side kalau wallet gak ngasih field yang dikenal -- lihat
-      // WalletContext.tsx). Guard ini cuma jaga-jaga defensif; kalau somehow
-      // tetap kosong, JANGAN nyuruh user "coba lagi" di sini -- dana dari
-      // sendTip() di atas udah beneran kekirim, retry bakal dobel kirim.
+      await beginEscrowLock(order.id, myWallet)
+      await refresh()
+
+      let txHash: string | null = null
+      try {
+        const tip = await sendTip(TREASURY_WALLET, order.amount)
+        txHash = tip.txHash
+      } catch (tipError) {
+        try {
+          await abortEscrowLock(order.id, myWallet)
+          await refresh()
+        } catch (abortError) {
+          console.error(
+            '[MUSYAWARAH] Gagal abort reservasi escrow -- bakal ke-cover auto_revert_stale_escrow_locks dalam <=20 menit:',
+            abortError
+          )
+        }
+        throw tipError
+      }
       const safeTxHash = txHash ?? `client-${Date.now()}`
       await lockEscrowOrder(order.id, myWallet, safeTxHash)
       await refresh()
@@ -724,10 +683,6 @@ function ThreadView({
     }
   }
 
-  /** Buyer klik "Confirm task complete" di chip order_update status 'locked'
-   * -- RPC saja, gak ada integrasi wallet (Fase 3.3, lebih ringan dari 3.2).
-   * Chip baru (`order_update: completed`) otomatis muncul dari RPC itu
-   * sendiri, tinggal refresh thread. */
   async function handleConfirmComplete(order: Order) {
     if (!myWallet) return
     setConfirmError(null)
@@ -744,10 +699,6 @@ function ThreadView({
     }
   }
 
-  /** Provider klik "Mark as delivered" di form dalam chip order_update status
-   * 'locked' (Fase 3.5, 015) -- RPC saja, gak ada integrasi wallet. Chip baru
-   * ("Provider marked this order as delivered.") otomatis muncul dari RPC
-   * itu sendiri, tinggal refresh thread. */
   async function handleMarkDelivered(order: Order, url: string) {
     if (!myWallet) return
     setDeliverError(null)
@@ -764,10 +715,6 @@ function ThreadView({
     }
   }
 
-  /** Buyer ATAU provider klik "Cancel order" di chip order_update status
-   * 'pending' (011) -- RPC saja, cuma bisa selama belum ada dana di escrow.
-   * Chip baru ("Order cancelled.") otomatis muncul dari `cancel_order`
-   * sendiri, tinggal refresh thread. */
   async function handleCancelOrder(order: Order) {
     if (!myWallet) return
     setCancelError(null)
@@ -784,10 +731,6 @@ function ThreadView({
     }
   }
 
-  /** Buyer klik "Submit dispute" di chip order_update status 'locked'
-   * (019/020) -- RPC saja, cuma bisa sekali per order (dijaga di server
-   * lewat `dispute_used`). Chip baru ("Buyer disputed...") otomatis muncul
-   * dari `dispute_order` sendiri, tinggal refresh thread. */
   async function handleDisputeOrder(order: Order, reason: string) {
     if (!myWallet) return
     setDisputeError(null)
@@ -804,10 +747,6 @@ function ThreadView({
     }
   }
 
-  /** Provider klik "Submit revision" di chip order_update status 'disputed'
-   * (019) -- balasan buat dispute (baik manual buyer maupun auto-flag 017).
-   * Chip baru ("Provider submitted a revised deliverable...") otomatis
-   * muncul dari `submit_deliverable_revision` sendiri. */
   async function handleSubmitRevision(order: Order, url: string) {
     if (!myWallet) return
     setRevisionError(null)
@@ -824,8 +763,6 @@ function ThreadView({
     }
   }
 
-  /** Salah satu pihak klik "Submit review" di chip order_update status
-   * 'released' (Fase 4) -- RPC saja, gak ada integrasi wallet. */
   async function handleSubmitReview(order: Order, rating: number, comment: string) {
     if (!myWallet || rating < 1) return
     setReviewError(null)
@@ -843,16 +780,12 @@ function ThreadView({
     }
   }
 
-  /** User klik "Not now" di form rating -- sembunyiin form-nya di device ini
-   * (localStorage, lihat utils/reviewDismissal.ts). Order-nya tetap
-   * 'released' & tetap bisa direview kapan pun lewat "Rate now". */
   function handleDismissReview(order: Order) {
     if (!myWallet) return
     dismissReviewPrompt(myWallet, order.id)
     setDismissedReviewIds((prev) => new Set(prev).add(order.id))
   }
 
-  /** User klik "Rate now" -- munculin lagi form yang tadi di-dismiss. */
   function handleUndismissReview(order: Order) {
     if (!myWallet) return
     undismissReviewPrompt(myWallet, order.id)
@@ -863,8 +796,6 @@ function ThreadView({
     })
   }
 
-  /** Hapus pesan `text` milik sendiri (014) -- konfirmasi dulu di MessageBubble
-   * sebelum manggil ini. */
   async function handleDeleteMessage(messageId: string) {
     setDeletingMessageId(messageId)
     try {
@@ -1044,18 +975,10 @@ export function MessagesPage({
   onVisitProfile,
   onVisitPost,
 }: {
-  /** Wallet yang thread-nya lagi kebuka -- diisi dari URL (#/messages/:wallet),
-   * null/undefined kalau lagi di daftar percakapan (#/messages). */
   openWallet?: string | null
-  /** Dipanggil pas mau buka thread ke suatu wallet -- parent yang ngurus
-   * update alamat URL-nya (lihat App.tsx). */
   onOpenThread: (wallet: string) => void
-  /** Dipanggil pas mau balik ke daftar percakapan. */
   onCloseThread: () => void
-  /** Dipanggil pas avatar/username di daftar pesan atau di header chat diklik. */
   onVisitProfile?: (walletAddress: string) => void
-  /** Dipanggil pas kartu listing (`listing_ref`/`offer`) di dalam chat
-   * diklik -- buka halaman permalink listing itu. */
   onVisitPost?: (postId: string) => void
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()

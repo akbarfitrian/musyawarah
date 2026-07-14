@@ -4,9 +4,6 @@ import { useWallet } from '../contexts/WalletContext'
 import type { VerificationTier } from '../lib/verification'
 import type { Post } from '../types'
 
-/** Ambil satu post by id, dilengkapi total tip/repost/avatar/tier verifikasi
- * -- versi "single item" dari usePosts.ts, dipakai buat halaman permalink
- * post (PostPage.tsx / route #/post/:id). */
 export function usePost(postId: string | undefined) {
   const { walletAddress } = useWallet()
   const [post, setPost] = useState<Post | null>(null)

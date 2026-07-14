@@ -51,10 +51,6 @@ export function TipButton({
     try {
       const { txHash, simulated } = await sendTip(toWallet, value)
 
-      // send_tip() di server (supabase/002_harden_writes.sql) yang nge-cek
-      // "gak bisa tip diri sendiri", to_wallet harus penulis post-nya, dan
-      // tx_hash gak boleh dipakai dua kali -- lalu bikin notifikasinya
-      // sekalian, atomik dalam satu function call.
       const { error: tipError } = await supabase.rpc('send_tip', {
         p_from: walletAddress,
         p_to: toWallet,

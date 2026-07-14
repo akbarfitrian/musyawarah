@@ -1,13 +1,6 @@
 import { useState } from 'react'
 import { UserCheckIcon, UserPlusIcon } from './icons'
 
-/**
- * Presentational aja — statenya (isFollowing, loading, dll) sengaja diangkat
- * ke pemanggilnya (lewat `useFollow`) biar cuma ada SATU instance hook per
- * profil. Kalau tiap komponen manggil useFollow sendiri-sendiri, count
- * followers/following bisa nggak sinkron abis toggle (persis kayak bug
- * avatar basi kemarin).
- */
 export function FollowButton({
   isFollowing,
   loading,
@@ -25,8 +18,6 @@ export function FollowButton({
     return <div className="h-9 w-[104px] shrink-0 animate-pulse rounded-full bg-surface-hover" aria-hidden="true" />
   }
 
-  // Kayak Twitter/X: tombol "Following" pas di-hover berubah jadi merah +
-  // teks "Unfollow", biar jelas klik itu bakal nge-unfollow.
   return (
     <button
       type="button"

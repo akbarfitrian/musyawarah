@@ -3,12 +3,6 @@ import { supabase } from '../supabaseClient'
 import { useWallet } from '../contexts/WalletContext'
 import type { QuestBoardRow } from '../types'
 
-/**
- * Papan quest & achievement, diambil lewat satu RPC call (get_quest_board,
- * lihat supabase/003_quests.sql). Progres quest sendiri ditegakkan &
- * dicatat di server -- hook ini cuma BACA state-nya, tidak pernah
- * menandai quest selesai dari client.
- */
 export function useQuests() {
   const { walletAddress } = useWallet()
   const [quests, setQuests] = useState<QuestBoardRow[]>([])

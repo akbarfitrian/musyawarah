@@ -33,7 +33,6 @@ export function useProfile(walletAddress: string | null) {
     refresh()
   }, [refresh])
 
-  /** Upsert sebagian field profil (bio dan/atau avatar_url). */
   const updateProfile = useCallback(
     async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username'>>) => {
       if (!walletAddress) throw new Error('Wallet not connected')

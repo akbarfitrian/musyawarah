@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AssetPrice } from '../types'
 
-// ============================================================================
-// ASSET PRICES — daftar token yang ditampilin di tab Assets. UCT & USDU
-// token custom Unicity yang belum listed di CoinGecko, jadi harganya
-// di-hardcode $1 (pegged) dan logonya "$" abu-abu (bukan fetch API). Sisanya
-// (BTC/USDC/USDT/ETH/SOL) ambil harga + logo live dari CoinGecko public API
-// (gratis, tanpa API key -- "ala kadarnya", cukup buat skala kecil).
-// ============================================================================
-
 const COINGECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin',
   USDC: 'usd-coin',
@@ -22,7 +14,6 @@ const CUSTOM_ASSETS: Record<string, string> = {
   USDU: 'Unicity USD',
 }
 
-/** Urutan tampil di tab Assets. */
 const ASSET_ORDER = ['UCT', 'BTC', 'ETH', 'SOL', 'USDC', 'USDT', 'USDU']
 
 function buildInitialAssets(): AssetPrice[] {
@@ -63,13 +54,7 @@ export function useAssetPrices() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Cegah request numpuk: kalau lagi ada fetch jalan (mis. React StrictMode
-  // manggil effect 2x pas mount di dev), skip aja daripada nembak CoinGecko
-  // 2x sekaligus dan kena rate limit lebih cepet.
   const inFlightRef = useRef(false)
-  // Backoff ringan kalau abis kena 429 -- daripada langsung nyoba lagi 60
-  // detik kemudian (masih dalam window rate limit yang sama), tunggu lebih
-  // lama dulu sebelum retry berikutnya.
   const backoffUntilRef = useRef(0)
 
   const refresh = useCallback(async () => {
@@ -84,8 +69,6 @@ export function useAssetPrices() {
         `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&price_change_percentage=24h`
       )
       if (res.status === 429) {
-        // Free tier CoinGecko lagi rate-limit kita -- jangan langsung retry,
-        // tunggu 2 menit dulu biar nggak makin diperpanjang limit-nya.
         backoffUntilRef.current = Date.now() + 120000
         throw new Error('CoinGecko rate limit (429)')
       }
@@ -126,8 +109,6 @@ export function useAssetPrices() {
     refresh()
   }, [refresh])
 
-  // Refresh ringan tiap 60 detik selagi tab Assets kebuka, biar harga tetep
-  // kerasa "live" tanpa nge-spam free tier CoinGecko.
   useEffect(() => {
     const interval = setInterval(refresh, 60000)
     return () => clearInterval(interval)

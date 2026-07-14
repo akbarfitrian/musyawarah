@@ -1,7 +1,5 @@
 import { StarIcon } from './icons'
 
-/** Baris 5 bintang. Display-only (`onChange` kosong) atau interaktif buat
- * form review -- dipakai bareng di ProfilePage & OrderUpdateChip (Fase 4). */
 export function RatingStars({
   value,
   onChange,

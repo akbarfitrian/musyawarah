@@ -46,18 +46,9 @@ function AppShell() {
   const { unreadCount: unreadNotifications } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'listings'>('all')
-  // Cuma dipakai pas feedFilter === 'listings' -- array kosong berarti "All
-  // categories" (gak difilter). Bisa pilih lebih dari satu kategori sekaligus
-  // (mis. "Coding" + "Design"), hasilnya union (OR), bukan interseksi --
-  // soalnya satu listing cuma punya 1 kategori, jadi "AND" bakal selalu 0 hasil.
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory[]>([])
   const { route, navigate } = useRouter()
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
-
-  // Setiap profil, post, dan thread DM sekarang punya alamat URL sendiri
-  // (#/profile/0x123, #/post/abc, #/messages/0x456) -- bisa di-copy/share/
-  // bookmark, dan tombol Back/Forward browser jalan normal. Lihat
-  // src/utils/routes.ts & src/hooks/useRouter.ts.
 
   function visitProfile(walletAddress: string) {
     navigate(profilePath(walletAddress))
@@ -71,12 +62,6 @@ function AppShell() {
     navigate(profilePath())
   }
 
-  // Fase 2 (draft §1b): kalau dipanggil dari tombol "Nego & Hire" (postId
-  // keisi), kirim kartu listing sebagai pesan pertama SEBELUM pindah ke
-  // thread-nya -- diawait biar udah nongol pas ThreadView pertama kali
-  // ngambil pesan. Kalau gagal (mis. sudah pernah dikirim / listing gak
-  // valid), tetap lanjut buka thread-nya -- ini cuma best-effort, bukan
-  // gerbang wajib buat ngobrol sama provider-nya.
   async function messageWallet(walletAddress_: string, postId?: string) {
     if (postId && walletAddress) {
       try {
@@ -92,8 +77,6 @@ function AppShell() {
     navigate(homePath())
   }
 
-  // Sidebar/mobile nav punya set nama beda dari Route['view'] (mis. gaada
-  // "post"), jadi di-map dulu di sini biar tipe-nya nyambung.
   const sidebarView: View | 'post' = route.view
   const headerTitle =
     route.view === 'home'

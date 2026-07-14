@@ -24,28 +24,6 @@ import {
   type WalletAsset,
 } from '../lib/sphereConnect'
 
-// ============================================================================
-// WALLET INTEGRATION — Sphere Connect protocol, iframe-only
-// ----------------------------------------------------------------------------
-// dApp (ConnectClient) <-> PostMessageTransport <-> Wallet (ConnectHost)
-//
-// Musyawarah cuma didukung sebagai Sphere Agent yang dimuat di dalam iframe
-// Sphere sendiri (mis. /agents/custom?url=http://localhost:5173/). Mode
-// extension & popup sengaja dibuang — dApp ini nggak jalan standalone di tab
-// browser biasa, jadi nggak butuh fallback ke luar iframe.
-//
-// Protocol Connect v2.0 WAJIB isi field `network` di ConnectClient — kalau
-// nggak ada, wallet nolak handshake dengan INCOMPATIBLE_NETWORK (4008),
-// reason: 'network_incompatible'. Sphere saat ini cuma jalan di testnet2
-// (SPHERE_NETWORKS.testnet2, networkId 4), jadi itu yang dipakai di sini.
-// Referensi: sphere-sdk/docs/CONNECT.md § "Handshake fields" & "Error codes".
-//
-// Satu hal yang jujur belum bisa dipastikan dari dokumentasi publik: coinId
-// UCT dalam bentuk 64-hex yang diminta protocol reference buat intent `send`.
-// Solusinya di sini: resolveUctCoin() query wallet buat cari token UCT-nya
-// sendiri (sphere_getAssets -> sphere_getTokens -> fallback env override).
-// ============================================================================
-
 interface ResolvedCoin {
   coinId: string
   decimals: number
@@ -61,23 +39,14 @@ interface WalletContextValue {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string | null; simulated: boolean }>
-  /** Saldo per-token wallet yang lagi connect. Diisi dari sphere_getAssets. */
   assets: WalletAsset[]
-  /** Total portofolio dalam USD kalau wallet nyediain (sphere_getFiatBalance). */
   totalFiat: number | null
-  /** True selagi lagi fetch/refresh saldo (bukan pas connect awal). */
   balanceLoading: boolean
-  /** Refresh manual — dipanggil otomatis juga tiap ada event transfer masuk/terkonfirmasi. */
   refreshBalance: () => Promise<void>
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined)
 
-/**
- * Cari coinId (64-hex) & decimals buat token UCT dari wallet yang lagi
- * connect. Coba sphere_getAssets dulu, lalu sphere_getTokens, baru fallback
- * ke override manual / symbol string kalau semuanya gagal.
- */
 async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
   const findUct = (list: unknown): { coinId?: string; decimals?: number } | undefined => {
     if (!Array.isArray(list)) return undefined
@@ -97,9 +66,6 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
     const list = Array.isArray(assets) ? assets : (assets as { assets?: unknown })?.assets
     const uct = findUct(list)
     const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
-    // Validasi format di sini juga -- kalau field yang ketangkep ternyata
-    // bukan hex beneran (mis. wallet naro symbol string di `id`), jangan
-    // dipakai, biar nggak lolos ke intent `send` dan gagal belakangan.
     if (isValidHexCoinId(coinId)) {
       return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
     }
@@ -125,13 +91,6 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
     console.warn('[MUSYAWARAH] sphere_getTokens juga gagal cari UCT.', err)
   }
 
-  // Fallback terakhir lewat override manual di .env.local. WAJIB divalidasi
-  // -- sebelumnya di sini ada bug: kalau override kosong, kodenya diam-diam
-  // kirim literal string "UCT" sebagai coinId ke wallet, yang otomatis
-  // ditolak wallet dengan error mentah "coinId must be lowercase even-length
-  // hex" pas user klik "Lock escrow". Sekarang dilempar sebagai error yang
-  // jelas di sisi kita, ketangkep sama try/catch di pemanggil (sendTip ->
-  // lockEscrowOrder di MessagesPage.tsx) dan ditampilin ke user.
   const override = import.meta.env.VITE_SPHERE_UCT_COIN_ID as string | undefined
   if (isValidHexCoinId(override)) {
     console.warn('[MUSYAWARAH] Nggak nemu coinId UCT dari wallet, pakai VITE_SPHERE_UCT_COIN_ID.')
@@ -145,12 +104,6 @@ async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
   )
 }
 
-/**
- * Catat quest "Connect Sphere Wallet" -- lihat supabase/003_quests.sql.
- * Best-effort (di-.catch aja) sama kayak notifyFollow/notifyRepost/notifyTip
- * di lib/notify.ts: kalau gagal, jangan sampai bikin flow connect ikutan
- * gagal, cukup di-log ke console.
- */
 async function recordWalletConnectQuest(handle: string) {
   if (!handle) return
   try {
@@ -191,10 +144,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setTotalFiat(null)
   }, [])
 
-  // ---- Saldo wallet, real-time ----
-  // sphere_getFiatBalance dianggap opsional (di-.catch(() => null)) karena
-  // nggak semua versi wallet nyediain query ini -- kalau nggak ada, UI
-  // tinggal jumlahin valueUsd per-asset sendiri.
   const refreshBalance = useCallback(async () => {
     const client = clientRef.current
     if (!client) return
@@ -215,21 +164,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const attachEvents = useCallback((client: ConnectClient) => {
     const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
-      // Parent frame (Sphere) tetep hidup, tunggu identity:changed pas
-      // wallet di-unlock lagi.
       setIsWalletLocked(true)
     })
 
     const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data: unknown) => {
       setIsWalletLocked(false)
       setWalletAddress(identityToHandle(data as SphereIdentity))
-      uctCoinRef.current = null // identity ganti -> re-resolve coin pas tip berikutnya
+      uctCoinRef.current = null
       refreshBalance()
     })
 
-    // Ini yang bikin saldo "real-time": Sphere dorong dua event ini tiap ada
-    // transaksi masuk/keluar, jadi kita nggak perlu polling — tinggal
-    // refetch pas event-nya kepicu.
     const unsubIncoming = client.on('transfer:incoming', () => refreshBalance())
     const unsubConfirmed = client.on('transfer:confirmed', () => refreshBalance())
 
@@ -241,11 +185,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshBalance])
 
-  // ---- Silent auto-connect on mount ----
-  // Musyawarah cuma jalan sebagai Sphere Agent di dalam iframe, jadi begitu
-  // halaman ke-load, coba connect diem-diem lewat PostMessageTransport.
-  // Kalau belum pernah approve (atau lagi dibuka di luar Sphere), ini bakal
-  // gagal dengan wajar dan tombol "Hubungkan Wallet" yang muncul.
   useEffect(() => {
     let cancelled = false
 
@@ -271,8 +210,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         refreshBalance()
         recordWalletConnectQuest(handle)
       } catch {
-        // Belum pernah approve, atau dApp ini lagi nggak dimuat di dalam
-        // Sphere -> diemin aja, biarin tombol "Hubungkan Wallet" yang muncul.
       } finally {
         if (!cancelled) setIsAutoConnecting(false)
       }
@@ -284,10 +221,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       cancelled = true
       unsubEventsRef.current?.()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ---- Connect lewat aksi user (klik tombol "Hubungkan Wallet") ----
   const connect = useCallback(async () => {
     setConnecting(true)
     setError(null)
@@ -353,13 +288,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       token?: { id?: string }
     }
 
-    // Sphere/Unicity BUKAN chain gaya EVM -- gak ada "tx hash"/block explorer
-    // buat intent `send`. Yang beneran dibalikin (dikonfirmasi dari live
-    // wallet, 2026-07-09) adalah "Transfer ID" (UUID, keliatan di panel
-    // Transaction History wallet), field-nya bisa transferId/transfer.id/id/
-    // tx.id tergantung versi wallet -- txHash/hash/tx.hash di atas TETAP
-    // dicek duluan buat jaga-jaga kalau versi wallet lain beneran ngasih
-    // hash, tapi jangan diasumsikan bakal ada.
     const identifier =
       result?.txHash ??
       result?.hash ??
@@ -373,17 +301,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       result?.token?.id ??
       null
 
-    // PENTING: pada titik ini `client.intent('send', ...)` udah RESOLVE --
-    // dananya udah beneran kekirim dari wallet. Kalau `identifier` tetap
-    // null (wallet ngasih bentuk respons yang belum pernah kelihatan sama
-    // sekali), JANGAN throw di sini -- itu bakal bikin caller (handleLockEscrow)
-    // nyuruh user klik "coba lagi", padahal transfer PERTAMA udah sukses, jadi
-    // user bakal ngirim dana KEDUA KALINYA buat order yang sama (lihat bug
-    // laporan 2026-07-09: dua baris -5 UCT buat 1 order). Fallback ke ID
-    // client-side aja -- `lock_tx_hash` di DB cuma catatan audit, bukan bukti
-    // terverifikasi on-chain (lihat draft §6: trusted custodian, bukan escrow
-    // trustless), jadi ID apa pun yang nunjukkin "attempt ini udah jalan"
-    // cukup buat nyatet lock-nya tanpa ngeblok user.
     const txHash =
       identifier ??
       `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -393,10 +310,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         result
       )
     }
-    // Nggak semua wallet ngirim event transfer buat sisi pengirim sendiri
-    // (biasanya cuma sisi penerima) — refresh manual di sini biar saldo
-    // langsung ke-update abis kirim tip, nggak nunggu event yang mungkin
-    // nggak dateng.
     refreshBalance()
     return { txHash, simulated: false }
   }, [walletAddress, refreshBalance])

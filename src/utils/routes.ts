@@ -1,13 +1,3 @@
-/**
- * Router super ringan berbasis hash (#/profile/0x123, #/post/abc, dst) --
- * nggak butuh library tambahan (react-router) dan otomatis jalan di hosting
- * static apa pun (nggak perlu rewrite rule server), termasuk pas MUSYAWARAH
- * dimuat sebagai iframe (lihat catatan di PostCard.tsx soal Sphere Agent).
- *
- * Setiap profil, post, dan thread DM sekarang punya alamat sendiri yang bisa
- * di-copy/share/bookmark -- sama kayak /wallet, /status/123, /messages/wallet
- * di X/Twitter.
- */
 
 export type Route =
   | { view: 'home' }
@@ -53,7 +43,6 @@ export function postPath(postId: string) {
 }
 
 export function parseHash(hash: string): Route {
-  // "#/profile/0x123" -> "/profile/0x123" -> ["profile", "0x123"]
   const path = hash.replace(/^#/, '') || '/'
   const [seg1, seg2] = path.split('/').filter(Boolean)
 
@@ -83,8 +72,6 @@ export function parseHash(hash: string): Route {
   }
 }
 
-/** Alamat lengkap yang bisa di-copy/share buat suatu path (mis. hasil dari
- * profilePath()/postPath()/messagesPath()). */
 export function absoluteUrl(path: string) {
   return `${window.location.origin}${window.location.pathname}${window.location.search}#${path}`
 }

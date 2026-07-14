@@ -2,16 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { dailyPostLimit, startOfUtcDayIso, type VerificationTier } from '../lib/verification'
 
-/**
- * Kuota posting harian buat wallet tertentu, berdasarkan tier verifikasinya.
- * Reset jam 00:00 UTC -- dihitung dengan ngitung berapa post yang dibikin
- * wallet itu sejak awal hari ini (UTC), bukan nyimpen counter terpisah.
- *
- * "ala kadarnya": ini ditegakkan di sisi klien (PostComposer.tsx nge-disable
- * tombol Post kalau `reachedLimit`), BUKAN di RLS Supabase. Sebelum
- * production, pindahin pengecekan ini ke server (mis. Postgres function/
- * trigger) biar nggak bisa dilewatin lewat request langsung ke Supabase.
- */
 export function usePostQuota(walletAddress: string | null, tier: VerificationTier) {
   const [usedToday, setUsedToday] = useState(0)
   const [loading, setLoading] = useState(true)

@@ -4,8 +4,6 @@ import { PostCard } from './PostCard'
 import { CopyLinkButton } from './CopyLinkButton'
 import { ChevronLeftIcon } from './icons'
 
-/** Halaman permalink buat satu post -- alamatnya sendiri (#/post/:id), bisa
- * di-copy/share/bookmark, sama kayak halaman /status/123 di X/Twitter. */
 export function PostPage({
   postId,
   onBack,

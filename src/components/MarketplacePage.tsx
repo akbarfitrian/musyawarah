@@ -7,15 +7,9 @@ import { timeAgo } from '../utils/time'
 import { BriefcaseIcon, MessageIcon, TagIcon } from './icons'
 import type { Order, OrderStatus } from '../types'
 
-// ============================================================================
-// FASE 4 — Halaman Marketplace: sub-tab "My Listings" (toggle aktif/nonaktif
-// + link permalink) & "My Orders" (dikelompokkan per status, link ke thread
-// DM terkait). Murni overview -- semua aksi (lock/confirm/review) tetap
-// dilakukan di dalam chat, gak dobel di sini. Lihat draft ringkas §3 & §4.
-// ============================================================================
-
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'Pending',
+  locking: 'Locking escrow…',
   locked: 'Locked',
   completed: 'Completed',
   released: 'Released',
@@ -26,6 +20,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 
 const STATUS_ORDER: OrderStatus[] = [
   'pending',
+  'locking',
   'locked',
   'completed',
   'released',

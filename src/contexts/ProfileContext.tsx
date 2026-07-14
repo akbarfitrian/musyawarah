@@ -10,16 +10,6 @@ import { supabase } from '../supabaseClient'
 import { useWallet } from './WalletContext'
 import type { Profile } from '../types'
 
-// ============================================================================
-// PROFILE STATE — satu sumber data dipakai bareng-bareng
-// ----------------------------------------------------------------------------
-// Sebelumnya tiap komponen (ProfilePage, ConnectWallet, dll) manggil hook
-// `useProfile` sendiri-sendiri, jadi masing-masing punya salinan state
-// terpisah. Akibatnya avatar/bio yang baru diupdate di satu tempat nggak
-// langsung nongol di tempat lain (mis. ikon connect wallet) sampai halaman
-// di-reload. Context ini bikin satu instance state yang dipakai bersama.
-// ============================================================================
-
 interface ProfileContextValue {
   profile: Profile | null
   loading: boolean

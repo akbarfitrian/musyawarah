@@ -1,0 +1,62 @@
+-- ============================================================================
+-- CONTOH: cara menulis migrasi baru mulai sekarang
+-- ============================================================================
+-- Ini BUKAN file yang perlu di-run — ini cuma contoh format.
+-- Untuk perubahan baru nanti (tambah kolom, ubah fungsi, dsb), kamu (atau
+-- Claude) cukup bikin snippet KECIL seperti di bawah ini, isinya CUMA
+-- bagian yang berubah — bukan seluruh schema.sql lagi.
+--
+-- Alur kerja untuk fitur/bugfix baru:
+--   1. Minta Claude buatkan snippet SQL kecil untuk perubahan itu saja.
+--   2. Copy-paste snippet itu ke Supabase SQL Editor, lalu Run.
+--   3. Minta Claude update schema.sql (yang sudah jadi 1 file itu) supaya
+--      tabel/fungsi yang berubah diganti ke versi terbaru — jadi schema.sql
+--      selalu mencerminkan apa yang sungguhan sudah di-deploy.
+--
+-- Contoh kasus: menambah kolom "pinned" ke tabel posts, dan mengubah fungsi
+-- create_post supaya read tapi tidak wajib mengubah kolom lain.
+-- ============================================================================
+
+-- 1) Kolom baru — "add column if not exists" aman dijalankan berkali-kali,
+--    dan tidak akan error kalau kolomnya sudah ada.
+alter table posts add column if not exists pinned boolean not null default false;
+
+-- 2) Kalau ada fungsi yang perlu diubah, pakai "create or replace function"
+--    dengan definisi LENGKAP fungsi tersebut (bukan cuma bagian yang beda).
+--    Contoh (bukan fungsi asli, cuma ilustrasi struktur):
+--
+-- create or replace function toggle_pin(p_wallet text, p_post_id uuid)
+-- returns posts
+-- language plpgsql
+-- security definer
+-- set search_path = public
+-- as $$
+-- declare
+--   v_post posts;
+-- begin
+--   select * into v_post from posts where id = p_post_id and author_wallet = p_wallet;
+--   if v_post.id is null then
+--     raise exception 'post not found or not owned by this wallet';
+--   end if;
+--
+--   update posts set pinned = not pinned where id = p_post_id
+--   returning * into v_post;
+--
+--   return v_post;
+-- end;
+-- $$;
+--
+-- grant execute on function toggle_pin(text, uuid) to anon, authenticated;
+
+-- ============================================================================
+-- Kenapa ini lebih baik dari cara lama (block semua & run)?
+-- ============================================================================
+-- - "add column if not exists" / "create or replace function" / "drop policy
+--   if exists lalu create" semuanya AMAN dijalankan berkali-kali — tidak akan
+--   pernah muncul error "already exists" seperti dulu.
+-- - Kamu cuma perlu run snippet baru yang kecil, bukan re-run 2000+ baris
+--   schema.sql tiap ada perubahan kecil.
+-- - schema.sql tetap jadi satu sumber kebenaran (source of truth) untuk
+--   "skema database saat ini seharusnya seperti apa", supaya kalau suatu saat
+--   perlu setup database baru dari nol, tinggal run schema.sql itu saja.
+-- ============================================================================

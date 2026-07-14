@@ -22,25 +22,12 @@ function formatUsd(value: number): string {
   })
 }
 
-/** Angka amount token, dipotong maks 4 desimal biar nggak kepanjangan di dropdown. */
 function formatAmount(amountBase: string, decimals: number): string {
   const value = Number(fromBaseUnits(amountBase, decimals))
   if (Number.isNaN(value)) return fromBaseUnits(amountBase, decimals)
   return value.toLocaleString('en-US', { maximumFractionDigits: 4 })
 }
 
-/**
- * Total portofolio buat tampilan ringkas di sidebar: pakai
- * sphere_getFiatBalance kalau wallet nyediain, kalau nggak jumlahin
- * fiatValueUsd per-asset dari wallet apa adanya.
- *
- * CATATAN: token custom yang nggak di-price sendiri sama wallet (UCT/USDU)
- * bakal kehitung $0 di sini walau amount-nya beneran ada -- itu karena
- * komponen ini sengaja nggak manggil useAssetPrices/CoinGecko sendiri (biar
- * nggak double-fetch bareng mobile header dan malah balik kena rate limit
- * 429). Daftar token di dropdown "View assets" di bawah juga cuma nampilin
- * valueUsd apa adanya dari wallet, tanpa fetch harga tambahan.
- */
 function computeTotalUsd(totalFiat: number | null, assets: WalletAsset[]): number | null {
   if (totalFiat !== null) return totalFiat
   if (assets.length === 0) return null
@@ -67,8 +54,6 @@ export function ConnectWallet() {
   const { profile } = useProfile()
   const { tier: verificationTier } = useVerification()
   const [menuOpen, setMenuOpen] = useState(false)
-  // Daftar token di-expand langsung di dalam dropdown ini (nggak pindah ke
-  // halaman lain) -- biar tetep ringkas, cukup dikasih max-height + scroll.
   const [assetsOpen, setAssetsOpen] = useState(false)
 
   const totalUsd = computeTotalUsd(totalFiat, assets)

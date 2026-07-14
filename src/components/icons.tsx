@@ -273,10 +273,6 @@ export function FlagIcon({ size = 20 }: IconProps) {
 }
 
 export function LogoMark({ size = 22 }: IconProps) {
-  // Brand mark — uploaded architectural "M" logo. Solid black artwork;
-  // inverted to solid white in dark mode via `dark:invert` so it always
-  // reads against its badge (see Sidebar/App usage: white badge in light
-  // mode, black badge in dark mode).
   return (
     <img
       src="/logo.png"
@@ -382,9 +378,6 @@ export function UserPlusIcon({ size = 16 }: IconProps) {
   )
 }
 
-/** Badge centang bergerigi (kayak centang biru/emas Twitter) -- warna
- * dikontrol dari luar lewat `currentColor` (fill), dipakai buat tier
- * "verified" (biru) & "verified_pro" (emas). Lihat VerifiedBadge.tsx. */
 export function VerifiedCheckIcon({ size = 14 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -404,11 +397,6 @@ export function VerifiedCheckIcon({ size = 14 }: IconProps) {
   )
 }
 
-/** Nav icon buat "Get Verified" -- badge centang bergerigi, murni
- * `currentColor` (outline pas nggak aktif, isi solid pas aktif) biar selalu
- * ikut warna teks nav & tema (hitam di light mode, putih di dark mode).
- * Beda dari VerifiedCheckIcon/DiamondBadgeIcon di atas yang emang sengaja
- * berwarna tetap buat badge tier di sebelah username. */
 export function VerifiedNavIcon({ size = 22, filled = false }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -430,7 +418,6 @@ export function VerifiedNavIcon({ size = 22, filled = false }: IconProps) {
     </svg>
   )
 }
-
 
 export function DiamondBadgeIcon({ size = 14 }: IconProps) {
   return (
@@ -576,8 +563,6 @@ export function CheckIcon({ size = 16 }: IconProps) {
   )
 }
 
-/** Ikon tas/etalase -- dipakai buat badge listing marketplace & toggle
- * "Post skill listing" di composer. */
 export function BriefcaseIcon({ size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -593,7 +578,6 @@ export function BriefcaseIcon({ size = 18 }: IconProps) {
   )
 }
 
-/** Ikon gembok -- dipakai buat tombol "Lock escrow" (Fase 3.2). */
 export function LockIcon({ size = 14 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -603,8 +587,6 @@ export function LockIcon({ size = 14 }: IconProps) {
   )
 }
 
-/** Ikon panah muter balik -- dipakai buat tombol "Refund" di AdminPage
- * (021.1), paralel sama LockIcon buat tombol "Release". */
 export function RefundIcon({ size = 14 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -620,8 +602,6 @@ export function RefundIcon({ size = 14 }: IconProps) {
   )
 }
 
-/** Ikon bintang -- dipakai buat rating provider (Fase 4). `filled` nentuin
- * solid (rating aktif/dipilih) atau outline (rating kosong). */
 export function StarIcon({ size = 14, filled = false }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'}>

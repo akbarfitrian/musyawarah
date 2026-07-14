@@ -2,13 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import type { ProviderReputation } from '../types'
 
-// ============================================================================
-// MARKETPLACE REVIEWS (Fase 4) — dipisah dari useOrders.ts biar konsisten
-// sama pola pemisahan hook per area fitur (lihat catatan di useOrders.ts).
-// ============================================================================
-
-/** Kirim review buat suatu order -- dipanggil dari prompt "Leave a review"
- * di chip order_update status 'released' (OrderUpdateChip.tsx). */
 export async function submitReview(
   orderId: string,
   reviewerWallet: string,
@@ -24,9 +17,6 @@ export async function submitReview(
   if (error) throw error
 }
 
-/** Rata-rata rating + jumlah review buat 1 wallet (dari `get_provider_reputation`).
- * Dipakai di ProfilePage, di sebelah VerifiedBadge -- cuma tampil kalau
- * `review_count > 0`. */
 export function useProviderReputation(wallet: string | null | undefined) {
   const [reputation, setReputation] = useState<ProviderReputation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,10 +50,6 @@ export function useProviderReputation(wallet: string | null | undefined) {
   return { reputation, loading }
 }
 
-/** Set `order_id` yang udah pernah direview `myWallet` -- dipakai buat
- * nyembunyiin prompt "Leave a review" di chip order_update kalau udah
- * pernah dikirim, tanpa perlu nunggu refresh thread penuh. Dibatch sekali
- * per daftar order_id, sama pola kayak useOrderSnapshots di useOrders.ts. */
 export function useMyReviewedOrderIds(orderIds: string[], myWallet: string | null) {
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set())
 
@@ -89,7 +75,6 @@ export function useMyReviewedOrderIds(orderIds: string[], myWallet: string | nul
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderIds.join(','), myWallet])
 
   return reviewedIds

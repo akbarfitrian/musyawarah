@@ -1,20 +1,5 @@
 import { supabase } from '../supabaseClient'
 
-// ============================================================================
-// NOTIFIKASI
-// ----------------------------------------------------------------------------
-// SUDAH TIDAK DIPAKAI buat follow/repost/tip (per supabase/002_harden_
-// writes.sql). Notifikasi buat ketiga aksi itu sekarang dibikin/dihapus DI
-// DALAM Postgres function-nya sendiri (toggle_follow, toggle_repost,
-// send_tip) biar atomik sama aksi utamanya dan gak bisa dilewatin lewat REST
-// API mentah -- lihat file SQL itu, bukan function-function di bawah ini.
-//
-// File ini sengaja DIBIARIN (bukan dihapus) sebagai referensi/kalau nanti
-// ada fitur notifikasi baru dari client yang butuh pola serupa. Fungsi di
-// bawah sekarang jadi dead code buat 3 fitur itu -- jangan diimpor lagi buat
-// follow/repost/tip.
-// ============================================================================
-
 export async function notifyFollow(actorWallet: string, recipientWallet: string) {
   try {
     const { error } = await supabase.from('notifications').insert({
@@ -28,7 +13,6 @@ export async function notifyFollow(actorWallet: string, recipientWallet: string)
   }
 }
 
-/** Dipanggil pas unfollow -- notif follow yang lama harus ikut hilang. */
 export async function removeFollowNotification(actorWallet: string, recipientWallet: string) {
   try {
     const { error } = await supabase
@@ -44,7 +28,7 @@ export async function removeFollowNotification(actorWallet: string, recipientWal
 }
 
 export async function notifyRepost(actorWallet: string, recipientWallet: string, postId: string) {
-  if (actorWallet === recipientWallet) return // jaga-jaga, walau UI udah nyegah repost post sendiri
+  if (actorWallet === recipientWallet) return
   try {
     const { error } = await supabase.from('notifications').insert({
       recipient_wallet: recipientWallet,
@@ -58,7 +42,6 @@ export async function notifyRepost(actorWallet: string, recipientWallet: string,
   }
 }
 
-/** Dipanggil pas undo repost -- notif repost yang lama harus ikut hilang. */
 export async function removeRepostNotification(actorWallet: string, postId: string) {
   try {
     const { error } = await supabase
@@ -74,7 +57,7 @@ export async function removeRepostNotification(actorWallet: string, postId: stri
 }
 
 export async function notifyTip(actorWallet: string, recipientWallet: string, postId: string, amount: number) {
-  if (actorWallet === recipientWallet) return // jaga-jaga, walau UI udah nyegah tip post sendiri
+  if (actorWallet === recipientWallet) return
   try {
     const { error } = await supabase.from('notifications').insert({
       recipient_wallet: recipientWallet,

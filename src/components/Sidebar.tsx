@@ -11,15 +11,10 @@ export function Sidebar({
   unreadNotifications = 0,
   isTreasury = false,
 }: {
-  /** 'post' dimasukin buat halaman permalink post (#/post/:id) -- nggak ada
-   * item nav yang aktif buat state ini. */
   view: View | 'post'
   onNavigate: (view: View) => void
   unreadMessages?: number
   unreadNotifications?: number
-  /** True kalau wallet yang connect == TREASURY_WALLET -- nampilin nav item
-   * "Admin" (011.1). Wallet lain nggak bakal liat link ini sama sekali,
-   * proteksi beneran tetap di AdminPage.tsx + validasi RPC di server. */
   isTreasury?: boolean
 }) {
   return (

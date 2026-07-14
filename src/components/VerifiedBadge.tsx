@@ -3,16 +3,11 @@ import { TIER_CONFIG } from '../lib/verification'
 import { VerifiedCheckIcon } from './icons'
 
 const CHECK_COLOR: Record<'verified' | 'verified_pro' | 'verified_max', string> = {
-  verified: '#2563EB', // centang biru
-  verified_pro: '#D97706', // centang emas
-  verified_max: '#4F46E5', // centang indigo
+  verified: '#2563EB',
+  verified_pro: '#D97706',
+  verified_max: '#4F46E5',
 }
 
-/**
- * Badge di samping username: centang biru (verified), centang emas
- * (verified_pro), atau centang indigo (verified_max). Nggak render apa-apa
- * buat tier "none" (free) -- biar nggak ada badge kosong di layout.
- */
 export function VerifiedBadge({
   tier,
   size = 14,

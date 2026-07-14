@@ -2,7 +2,7 @@
 
 A decentralized social platform built on wallet-based identity, implemented on top of the **Sphere Wallet** and the **Unicity network**. Musyawarah takes its name from *musyawarah*, the Indonesian tradition of deliberation and consensus, and applies it to open, transparent, community-driven discussion and peer-to-peer hiring.
 
-> **Status**: v2.4, running against Sphere's `testnet2` network.
+> **Status**: v2.4.1, running against Sphere's `testnet2` network. See [`CHANGELOG.md`](./CHANGELOG.md) for release history.
 
 ---
 
@@ -13,7 +13,7 @@ Musyawarah is not a standalone web app with wallet support bolted on — it is b
 - **Identity**: wallets are the only identity layer. There is no separate account system, password, or email — a connected Sphere wallet address is the user.
 - **Connect protocol v2.0**: the app performs a silent auto-connect on load via `ConnectClient`, with `network` set to `SPHERE_NETWORKS.testnet2` on every handshake, since that is the only network Sphere currently runs.
 - **Transport**: iframe-only. Earlier iterations supported extension and popup fallbacks (the `SphereConnectionMode` type still lists `'iframe' | 'extension' | 'popup'`), but both were deliberately dropped. The app does not run standalone in a normal browser tab — opening it outside Sphere leaves it on the "Connect Wallet" screen, since `connect()` has no parent frame to hand off to.
-- **UCT (Unicity Token)**: the native currency for every value transfer in the app — tips, verification billing, and marketplace payments. UCT's on-chain `coinId` is not published anywhere stable, so `resolveUctCoin()` queries the connected wallet at runtime (`sphere_getAssets` → `sphere_getTokens` → an optional `VITE_SPHERE_UCT_COIN_ID` override), rather than hardcoding it.
+- **UCT (Unicity Token)**: the native currency for every value transfer in the app — tips, verification billing, and marketplace payments. UCT's on-chain `coinId` is not published anywhere stable, so `resolveUctCoin()` queries the connected wallet at runtime (`sphere_getAssets` → `sphere_getTokens` → an optional `VITE_SPHERE_UCT_COIN_ID` override), rather than hardcoding it. Every candidate coinId is validated with `isValidHexCoinId()` (even-length lowercase hex) before it's trusted; a malformed value from the wallet is discarded with a console warning instead of being used as-is, and if no valid coinId can be resolved at all — from the wallet or from `VITE_SPHERE_UCT_COIN_ID` — `resolveUctCoin()` throws a descriptive error rather than silently falling back to the literal string `"UCT"`.
 - **Transfer confirmation handling**: Sphere/Unicity does not always return a conventional transaction hash from a `send` intent. Depending on wallet version it may return `transferId`, `transfer.id`, `tx.id`, `tokenId`, or similar. `sendTip()` checks all of these and falls back to a client-generated identifier rather than throwing, since throwing at that point would report a successful transfer as a failure and risk a duplicate send.
 - **Live wallet balance**: the sidebar's wallet dropdown reads portfolio value and per-token balances directly from the connected wallet, refreshed on demand and pushed live on incoming or confirmed transfers.
 
@@ -49,7 +49,7 @@ Any post can be published as a listing (title, category, price, and price mode �
 1. **List** — a provider posts a listing, visible in the feed and on their profile. Deactivating a listing (`set_listing_active`) is enforced server-side against new offers too, not just hidden client-side — a deactivated listing can't receive fresh offers even if its card is still sitting in an old DM thread.
 2. **Negotiate** — a buyer selects "Negotiate & Hire", opening a DM with the listing attached as the first message. Either side can propose a price as an offer. An offer left unanswered for **3 hours** is auto-declined, with a system message explaining it expired rather than was rejected.
 3. **Order** — accepting an offer creates an order and posts an automatic status message in the same thread. Accepting a new offer automatically supersedes any stale pending order for the same pair.
-4. **Escrow** — the buyer locks payment to a treasury wallet (`lock_escrow_order`). Starting **1 hour** after lock, and every **6 hours** after that, both buyer and provider get a reminder notification with the order's details, until either side moves the order along or 24 hours pass.
+4. **Escrow** — locking payment is a two-phase handoff between the database and the on-chain transfer, not a single step. The buyer first reserves the order server-side (`begin_escrow_lock`), which moves it to a transient `locking` status and stamps `locking_at`; only then does the client send the actual on-chain tip to the treasury wallet. If that transfer fails or is rejected in the wallet, the client immediately releases the reservation (`abort_escrow_lock`), returning the order to `pending` so the buyer can retry cleanly instead of the order getting stuck mid-lock. Any order left in `locking` for more than **15 minutes** — e.g. the buyer closed the tab mid-transfer — is automatically reverted to `pending` by a scheduled function (see **Marketplace automation** below). Once the transfer succeeds, `lock_escrow_order` moves the order to `locked`. Starting **1 hour** after lock, and every **6 hours** after that, both buyer and provider get a reminder notification with the order's details, until either side moves the order along or 24 hours pass.
 5. **Deliver** — the provider marks the order delivered with a link to the finished work (Google Drive, GitHub, Figma, etc. — the platform has no file storage of its own, so delivery is always a URL). This can only happen once per order at this step; `confirm_order_complete` is gated behind it, so the buyer's "Confirm task complete" button doesn't activate until a deliverable link exists.
 6. **Confirm, dispute, or drift** — once a deliverable link is posted, the buyer has three paths:
    - **Confirm** — `confirm_order_complete` moves the order to `completed`, same as before.
@@ -62,16 +62,17 @@ Any post can be published as a listing (title, category, price, and price mode �
 7. **Cancel** — either party can cancel an order while it is still `pending`, before anything is locked. Once locked, resolving a problem goes through the dispute flow above rather than a one-sided cancel.
 8. **Review** — once an order is `released`, either party can leave a star rating and comment, aggregated into a reputation badge on the provider's profile. A "Rate now" prompt can be dismissed per-order in the UI (stored in `localStorage`, not the database) and recalled later — dismissing it never affects whether the order can still be reviewed.
 
-Order status (`pending → locked → completed → released`, with `locked ⇄ disputed` as a possible detour before `completed`, `disputed → refunded` if a non-delivery dispute goes unanswered long enough, or `cancelled` from `pending`) renders as a status chip inline in the DM thread, with the relevant action attached. A dedicated Marketplace page (`/marketplace`) provides two tabs: My Listings and My Orders.
+Order status (`pending → locking → locked → completed → released`, with `locking → pending` as a self-healing detour if the on-chain transfer fails or times out, `locked ⇄ disputed` as a possible detour before `completed`, `disputed → refunded` if a non-delivery dispute goes unanswered long enough, or `cancelled` from `pending`) renders as a status chip inline in the DM thread, with the relevant action attached — including a pulsing "Locking escrow…" chip while the on-chain transfer is in flight. A dedicated Marketplace page (`/marketplace`) provides two tabs: My Listings and My Orders.
 
 Escrow is custodial, not trustless. The treasury wallet (the same wallet used for verification payments, `VITE_VERIFICATION_TREASURY_WALLET`) is the counterparty for lock and release. Release is only ever performed from the Admin page by that wallet.
 
 ### Marketplace automation (scheduled, not user-triggered)
 
-Five functions run on a schedule rather than in response to a click, and are deliberately **not** granted to `anon`/`authenticated` — only `service_role` can call them, since each one processes every eligible order or offer platform-wide in one pass rather than one user's own data:
+Six functions run on a schedule rather than in response to a click, and are deliberately **not** granted to `anon`/`authenticated` — only `service_role` can call them, since each one processes every eligible order or offer platform-wide in one pass rather than one user's own data:
 
 | Function | Cadence / trigger | Effect |
 |---|---|---|
+| `auto_revert_stale_escrow_locks` | every 5 minutes; orders stuck in `locking` > 15 minutes | Order → `pending`, `locking_at` cleared — recovers orders whose on-chain transfer never completed or confirmed (e.g. the tab was closed mid-transfer) |
 | `auto_decline_expired_offers` | offers pending > 3h | Offer → `declined`, with a system message noting it expired |
 | `send_escrow_confirmation_reminders` | 1h after lock, then every 6h, until 24h | Notifies both buyer and provider that confirmation is still pending |
 | `auto_dispute_non_delivery` | 24h after lock, no deliverable submitted | Order → `disputed` (`seller_no_delivery_24h`) |
@@ -178,53 +179,14 @@ npm run build   # runs `tsc -b` then `vite build`; both pages land in one dist/
 │   ├── types.ts                # shared TypeScript types for the data model
 │   ├── supabaseClient.ts
 │   └── main.tsx
-└── supabase/                   # plain numbered SQL migrations, no CLI tooling
-    ├── schema.sql               # base tables and initial RLS policies
-    ├── 002_harden_writes.sql    # SECURITY DEFINER RPCs for posts/follows/reposts/tips/verification
-    ├── 003_quests.sql           # quests + user_quest_progress tables, re-wraps the RPCs above
-    │                            #   with quest-completion triggers, adds get_quest_board()
-    ├── 004_top_tipped.sql       # get_top_tipped() user leaderboard RPC
-    ├── 005_top_tipped_posts.sql # get_top_tipped_posts() trending posts RPC
-    ├── 006_marketplace_listings.sql    # listing columns on posts; create_post() redefined
-    │                                   #   to accept them
-    ├── 007_marketplace_negotiation.sql # messages.kind/payload, orders table (pending
-    │                                   #   only), send_message/propose_offer/accept_offer/
-    │                                   #   decline_offer/mark_thread_read RPCs
-    ├── 008_marketplace_escrow_rpc.sql  # lock_escrow_order/confirm_order_complete/
-    │                                   #   mark_order_released RPCs
-    ├── 009_marketplace_reviews.sql     # reviews table, submit_review(),
-    │                                   #   get_provider_reputation(), set_listing_active()
-    ├── 010_fix_treasury_wallet.sql     # fixes a bad treasury-wallet constant from 008
-    ├── 011_cancel_and_supersede_orders.sql # cancel_order() and auto-supersede of stale
-    │                                        #   pending orders on re-negotiation
-    ├── 012_block_offers_on_inactive_listings.sql # propose_offer() redefined to reject
-    │                                               #   offers on listings the provider
-    │                                               #   has since deactivated
-    ├── 013_offer_expiry_and_escrow_reminders.sql # auto_decline_expired_offers() and
-    │                                               #   send_escrow_confirmation_reminders(),
-    │                                               #   scheduled via pg_cron, service_role only
-    ├── 014_delete_message.sql          # messages.deleted + delete_message() RPC,
-    │                                    #   soft delete, sender-only, text messages only
-    ├── 015_order_deliverable.sql       # orders.deliverable_url/delivered_at +
-    │                                    #   mark_order_delivered() RPC
-    ├── 016_gate_confirm_on_deliverable.sql # confirm_order_complete() redefined to
-    │                                        #   require deliverable_url first
-    ├── 017_auto_dispute_non_delivery.sql   # auto_dispute_non_delivery(), scheduled,
-    │                                        #   flags orders with no delivery after 24h
-    ├── 018_auto_complete_unconfirmed_orders.sql # auto_complete_unconfirmed_orders(),
-    │                                              #   scheduled, closes out orders the
-    │                                              #   buyer never confirmed after 72h
-    ├── 019_dispute_and_revision.sql    # dispute_order() and
-    │                                    #   submit_deliverable_revision() RPCs
-    ├── 020_single_dispute_limit.sql    # dispute_order() redefined to allow only one
-    │                                     #   dispute per order (dispute_used flag)
-    └── 021_auto_refund_non_delivery.sql # auto_flag_refund_eligible_disputes(),
-                                           #   scheduled, flags unanswered non-delivery
-                                           #   disputes after another 24h; mark_order_refunded()
-                                           #   RPC, operator-only, requires the flag first
+└── supabase/                   # single consolidated schema, no CLI tooling
+    └── schema.sql               # the entire database as it stands today — tables, RLS
+                                   #   policies, and every SECURITY DEFINER RPC/scheduled
+                                   #   function, kept as one file that always matches what's
+                                   #   actually deployed (see below)
 ```
 
-Run the SQL files against your Supabase project in numeric order, `schema.sql` through `021`. Later files redefine some functions from earlier ones — for example, `create_post` is redefined in `003_quests.sql` to record quest progress, then again in `006_marketplace_listings.sql` to accept listing fields, carrying the quest-award logic forward. Likewise `confirm_order_complete` (008) is redefined in `016` to require a deliverable link, and `dispute_order` (019) is redefined in `020` to enforce a one-dispute-per-order limit.
+Run `schema.sql` once against a fresh Supabase project to get the full, current database. Through v2.4, this project shipped as a sequence of 20 numbered migration files (`002_harden_writes.sql` → `021_auto_refund_non_delivery.sql`) applied in order, with later files redefining functions from earlier ones — for example `create_post` was redefined first to record quest progress, then again to accept marketplace-listing fields; `confirm_order_complete` was later redefined to require a deliverable link first; `dispute_order` was redefined to cap disputes at one per order. As of v2.4.1 those numbered files have been folded into a single up-to-date `schema.sql`, and any already-deployed project should already have every change in it applied. Going forward, new schema changes ship as small standalone snippets that get run once by hand and then folded into `schema.sql`, instead of a growing chain of numbered files.
 
 ---
 
@@ -237,12 +199,12 @@ Every write goes through Supabase RPC functions (`SECURITY DEFINER`):
 - `purchase_verification` — recomputes price from `TIER_CONFIG` server-side and rejects a `tx_hash` that has already been used
 - `award_quest`, `record_wallet_connect`, `get_quest_board` — quest progress bookkeeping
 - `get_top_tipped`, `get_top_tipped_posts` — leaderboard reads
-- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read`, `delete_message` — direct-message writes and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient and creates a `pending` row in `orders` with an automatic system message in the same thread. `propose_offer` rejects listings the provider has since deactivated (`012_block_offers_on_inactive_listings.sql`) — the client already hides the "Make offer" button/picker once a wallet's `useProviderListings` result is empty, but the RPC enforces it too since that client check can be bypassed. `delete_message` (`014`) only soft-deletes the caller's own `kind = 'text'` messages — negotiation and order-status messages can't be deleted, since they double as transaction history.
-- `lock_escrow_order`, `confirm_order_complete`, `mark_order_released`, `cancel_order`, `mark_order_delivered`, `dispute_order`, `submit_deliverable_revision`, `mark_order_refunded` — the escrow lifecycle. `mark_order_released` and `mark_order_refunded` (`021`) are both validated server-side against the treasury wallet regardless of what the client claims; the Admin-page guard is a UX convenience, not the security boundary. `confirm_order_complete` (`016`) requires `deliverable_url` to be set before a buyer can confirm. `dispute_order` (`020`) is capped at one dispute per order via a permanent `dispute_used` flag, independent of `disputed_at`/`dispute_reason` which get cleared on each revision. `mark_order_refunded` additionally refuses to run until `refund_flagged_at` is set — an operator can't refund a non-delivery dispute before it's been flagged by the scheduled function below.
-- `auto_decline_expired_offers`, `send_escrow_confirmation_reminders`, `auto_dispute_non_delivery`, `auto_flag_refund_eligible_disputes`, `auto_complete_unconfirmed_orders` — scheduled housekeeping, not user-triggered. Revoked from `anon`/`authenticated` and granted to `service_role` only, since each call processes every eligible order/offer platform-wide rather than one caller's own data; see **Marketplace automation** above.
+- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read`, `delete_message` — direct-message writes and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient and creates a `pending` row in `orders` with an automatic system message in the same thread. `propose_offer` rejects listings the provider has since deactivated — the client already hides the "Make offer" button/picker once a wallet's `useProviderListings` result is empty, but the RPC enforces it too since that client check can be bypassed. `delete_message` only soft-deletes the caller's own `kind = 'text'` messages — negotiation and order-status messages can't be deleted, since they double as transaction history.
+- `begin_escrow_lock`, `abort_escrow_lock`, `lock_escrow_order`, `confirm_order_complete`, `mark_order_released`, `cancel_order`, `mark_order_delivered`, `dispute_order`, `submit_deliverable_revision`, `mark_order_refunded` — the escrow lifecycle. `begin_escrow_lock` reserves an order (`pending` → `locking`) before the client attempts the on-chain transfer; `abort_escrow_lock` releases that reservation back to `pending` if the transfer fails, and only succeeds against an order the caller actually holds in `locking`. `mark_order_released` and `mark_order_refunded` are both validated server-side against the treasury wallet regardless of what the client claims; the Admin-page guard is a UX convenience, not the security boundary. `confirm_order_complete` requires `deliverable_url` to be set before a buyer can confirm. `dispute_order` is capped at one dispute per order via a permanent `dispute_used` flag, independent of `disputed_at`/`dispute_reason` which get cleared on each revision. `mark_order_refunded` additionally refuses to run until `refund_flagged_at` is set — an operator can't refund a non-delivery dispute before it's been flagged by the scheduled function below.
+- `auto_revert_stale_escrow_locks`, `auto_decline_expired_offers`, `send_escrow_confirmation_reminders`, `auto_dispute_non_delivery`, `auto_flag_refund_eligible_disputes`, `auto_complete_unconfirmed_orders` — scheduled housekeeping, not user-triggered. Revoked from `anon`/`authenticated` and granted to `service_role` only, since each call processes every eligible order/offer platform-wide rather than one caller's own data; see **Marketplace automation** above.
 - `submit_review`, `get_provider_reputation`, `set_listing_active` — reviews and listing management
 
-The `messages` table has no client-side write path. As of `007_marketplace_negotiation.sql`, direct insert/update privileges on `messages` were revoked from `anon`/`authenticated`. The `orders` and `reviews` tables introduced afterward follow the same rule from the start: reads are public, writes are RPC-only.
+The `messages` table has no client-side write path — direct insert/update privileges on `messages` are revoked from `anon`/`authenticated`. The `orders` and `reviews` tables follow the same rule: reads are public, writes are RPC-only.
 
 ---
 
@@ -266,7 +228,7 @@ The single source of truth is `TIER_CONFIG` in `src/lib/verification.ts`.
 
 ## Quests and Achievements
 
-A 10-quest, sequentially unlocked progression (`src/components/QuestsPage.tsx`, `src/hooks/useQuests.ts`, backed by `get_quest_board()` in `003_quests.sql`) — each quest stays locked until the previous one is completed. Seven easy quests (1 point each), two medium (2 points each), and one hard (3 points) total 14 points:
+A 10-quest, sequentially unlocked progression (`src/components/QuestsPage.tsx`, `src/hooks/useQuests.ts`, backed by `get_quest_board()` in `supabase/schema.sql`) — each quest stays locked until the previous one is completed. Seven easy quests (1 point each), two medium (2 points each), and one hard (3 points) total 14 points:
 
 1. Connect Sphere Wallet
 2. Complete Your Profile (avatar and bio)
@@ -301,6 +263,7 @@ Both support a weekly (resets Monday 00:00 UTC) and all-time period toggle.
 - Plus Jakarta Sans for body text
 - JetBrains Mono for wallet addresses and token amounts
 - Light and dark mode, persisted to `localStorage` and defaulting to the OS `prefers-color-scheme` on first visit
+- Post images (`PostCard.tsx`) are letterboxed on a soft background (`object-contain`) rather than cropped to fill (`object-cover`), so portrait or unusually-proportioned images display in full instead of being cut off
 
 ---
 

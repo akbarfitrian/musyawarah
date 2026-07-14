@@ -5,14 +5,12 @@ import { computeHoldingsTotalUsd, fromBaseUnits, type WalletAsset } from '../lib
 import type { AssetPrice } from '../types'
 import { RefreshIcon } from './icons'
 
-/** Angka amount token, dipotong maks 4 desimal biar nggak kepanjangan di UI. */
 function formatAmount(amountBase: string, decimals: number): string {
   const value = Number(fromBaseUnits(amountBase, decimals))
   if (Number.isNaN(value)) return fromBaseUnits(amountBase, decimals)
   return value.toLocaleString('en-US', { maximumFractionDigits: 4 })
 }
 
-/** Cari holding wallet yang simbolnya cocok sama baris asset (case-insensitive). */
 function findHolding(assets: WalletAsset[], symbol: string): WalletAsset | undefined {
   return assets.find((a) => a.symbol.toUpperCase() === symbol.toUpperCase())
 }
@@ -35,8 +33,6 @@ function formatChange(change: number | null): string | null {
 }
 
 function AssetLogo({ asset }: { asset: AssetPrice }) {
-  // Token custom (UCT/USDU): bulatan hitam dengan tanda "$" kuning, bukan
-  // logo dari API -- soalnya kedua token ini belum listed di CoinGecko.
   if (asset.isCustom) {
     return (
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-[16px] font-bold text-yellow-400">
@@ -53,8 +49,6 @@ function AssetLogo({ asset }: { asset: AssetPrice }) {
     )
   }
 
-  // Belum ke-load (masih loading atau CoinGecko gagal) -- placeholder abu-abu
-  // pakai huruf pertama simbolnya, biar layoutnya nggak "loncat".
   return (
     <div className="flex h-10 w-10 shrink-0 animate-pulse items-center justify-center rounded-full bg-surface-hover text-[13px] font-semibold text-ink-faint">
       {asset.symbol.slice(0, 1)}
@@ -77,9 +71,6 @@ function AssetRow({ asset, holding }: { asset: AssetPrice; holding?: WalletAsset
 
   const heldAmount = holding ? Number(fromBaseUnits(holding.amountBase, holding.decimals)) : null
   const computedValue = heldAmount !== null && asset.price ? heldAmount * asset.price : null
-  // Wallet sering balikin fiatValueUsd = 0 buat token yang nggak dia-price
-  // sendiri (mis. UCT/USDU custom) walau amount-nya beneran ada -- kalau gini
-  // pakai hitungan manual (amount * harga pegged/live) daripada percaya 0-nya.
   const heldValue = holding?.valueUsd ? holding.valueUsd : computedValue
   const hasHeldValue = Boolean(holding) && heldValue !== null
 
@@ -120,9 +111,6 @@ export function AssetsPage() {
   const { assets, loading, error, refresh } = useAssetPrices()
   const { walletAddress, assets: holdings, balanceLoading, refreshBalance } = useWallet()
 
-  // Saldo wallet nggak otomatis kefetch pas buka tab Assets (cuma pas
-  // connect/event transfer) -- refresh manual di sini + polling ringan biar
-  // nilainya nggak macet di 0/stale pas user lagi liat halaman ini.
   useEffect(() => {
     if (!walletAddress) return
     refreshBalance()

@@ -41,12 +41,6 @@ function tierFeatureLines(tier: Exclude<VerificationTier, 'none'>): string[] {
   return lines
 }
 
-/**
- * Label "Expires {date} · N days left" buat status box. Pembayaran tier ini
- * sekali transfer UCT (bukan langganan auto-charge), jadi begitu lewat
- * expires_at, tier balik ke Free sampai dibeli ulang manual -- makanya
- * urgent = true (buat kasih warna warning) begitu sisa harinya <= 3.
- */
 function formatExpiryInfo(expiresAtIso: string): { text: string; urgent: boolean } {
   const expiresAtDate = new Date(expiresAtIso)
   const daysLeft = Math.ceil((expiresAtDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -81,7 +75,6 @@ export function GetVerifiedPage({ onBack }: { onBack?: () => void }) {
       await purchase(tier, interval)
       setJustPurchased(tier)
     } catch {
-      // error state udah ditangani & ditampilin lewat `error` dari useVerification
     }
   }
 

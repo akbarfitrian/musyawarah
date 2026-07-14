@@ -7,17 +7,6 @@ import {
   type ReactNode,
 } from 'react'
 
-// ============================================================================
-// THEME STATE — light / dark, satu sumber dipakai di seluruh app
-// ----------------------------------------------------------------------------
-// Preferensi disimpan di localStorage biar kepilih lagi pas reload. Kalau
-// belum pernah diset, kita ikutin preferensi sistem (prefers-color-scheme).
-// Class `dark` ditempel/dilepas di <html> — semua warna semantik (base,
-// surface, ink, dst di tailwind.config.js) baca CSS variable yang di-swap
-// lewat selector `.dark` di index.css, jadi seluruh UI ikut berubah tanpa
-// perlu variant `dark:` di tiap komponen.
-// ============================================================================
-
 export type Theme = 'light' | 'dark'
 
 const STORAGE_KEY = 'musyawarah:theme'

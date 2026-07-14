@@ -9,12 +9,6 @@ export interface UserSearchResult extends Profile {
 
 const DEBOUNCE_MS = 250
 
-/**
- * Cari user (profil) berdasarkan username atau wallet address, dipakai
- * sama search bar di RightPanel. Di-debounce biar nggak nembak request
- * tiap ketikan, dan hasilnya dilengkapi tier verifikasi buat nampilin
- * badge centang di dropdown hasil.
- */
 export function useUserSearch(query: string) {
   const [results, setResults] = useState<UserSearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -40,7 +34,6 @@ export function useUserSearch(query: string) {
           .limit(8)
 
         if (error) throw error
-        // kalau ada request lebih baru yang udah jalan, buang hasil yang basi ini
         if (thisRequest !== requestId.current) return
 
         const wallets = (profiles ?? []).map((p) => p.wallet_address)

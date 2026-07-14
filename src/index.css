@@ -4,10 +4,7 @@
 
 @layer base {
   :root {
-    /* Light theme — pure white surfaces, pure black text/accents. No color
-       tinting: the only color left in the whole UI is the fixed blue used
-       for unread-message notifications (see `notify` in tailwind.config.js
-       and VerifiedBadge's tier check colors, which are unrelated to theme). */
+
     --color-base: 255 255 255;
     --color-base-soft: 250 250 250;
     --color-surface: 255 255 255;
@@ -19,8 +16,6 @@
     --color-ink-muted: 82 82 82;
     --color-ink-faint: 140 140 140;
 
-    /* Monochrome accent — used for CTAs, active states, links, focus rings.
-       Black in light mode, flips to white in dark mode below. */
     --color-accent: 0 0 0;
     --color-accent-contrast: 255 255 255;
 
@@ -34,8 +29,7 @@
   }
 
   .dark {
-    /* Dark theme — pure black surfaces, pure white text/accents. Exact
-       mirror image of light mode. */
+
     --color-base: 0 0 0;
     --color-base-soft: 10 10 10;
     --color-surface: 15 15 15;
@@ -92,7 +86,6 @@
     background: var(--selection-bg);
   }
 
-  /* slim, on-brand scrollbars */
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;

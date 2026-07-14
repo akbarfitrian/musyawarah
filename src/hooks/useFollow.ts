@@ -2,14 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useWallet } from '../contexts/WalletContext'
 
-/**
- * Status follow buat satu wallet target (profil yang lagi dibuka), plus
- * jumlah followers & following-nya. Kayak tombol Follow di Twitter/X.
- *
- * - `isFollowing`: apakah wallet yang lagi connect udah follow `targetWallet`.
- * - `followerCount` / `followingCount`: dihitung ulang tiap `refresh()`.
- * - `toggleFollow()`: follow kalau belum, unfollow kalau udah.
- */
 export function useFollow(targetWallet: string | null) {
   const { walletAddress: myWallet } = useWallet()
   const [isFollowing, setIsFollowing] = useState(false)
@@ -73,15 +65,11 @@ export function useFollow(targetWallet: string | null) {
     setBusy(true)
     setError(null)
 
-    // Optimistic update biar tombolnya kerasa instan.
     const wasFollowing = isFollowing
     setIsFollowing(!wasFollowing)
     setFollowerCount((c) => (wasFollowing ? Math.max(0, c - 1) : c + 1))
 
     try {
-      // toggle_follow() di server (supabase/002_harden_writes.sql) yang
-      // nge-cek "gak bisa follow diri sendiri" dan bikin/hapus notifikasinya
-      // sekalian, atomik dalam satu function call.
       const { error: toggleError } = await supabase.rpc('toggle_follow', {
         p_follower: myWallet,
         p_followed: targetWallet,
@@ -89,7 +77,6 @@ export function useFollow(targetWallet: string | null) {
 
       if (toggleError) throw toggleError
     } catch (e) {
-      // Rollback optimistic update kalau gagal.
       setIsFollowing(wasFollowing)
       setFollowerCount((c) => (wasFollowing ? c + 1 : Math.max(0, c - 1)))
       setError('Failed to update follow status. Try again.')

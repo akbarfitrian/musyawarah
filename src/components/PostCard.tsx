@@ -29,18 +29,8 @@ export function PostCard({
   onTipped: () => void
   onDeleted: () => void
   onVisitProfile?: (walletAddress: string) => void
-  /** Dipanggil pas timestamp post diklik -- buka halaman permalink-nya
-   * sendiri (#/post/:id), sama kayak klik tanggal di tweet X/Twitter. */
   onVisitPost?: (postId: string) => void
-  /** Dipanggil pas tombol "Nego & Hire" di kartu listing diklik -- buka DM
-   * ke provider-nya. Fase 2: kalau `postId` diisi, App.tsx otomatis ngirim
-   * kartu listing (`listing_ref`) sebagai pesan pertama sebelum pindah ke
-   * thread-nya (lihat draft §1b/§4). Parameter kedua optional biar tombol
-   * "Message" biasa di ProfilePage (yang gak tau konteks listing) tetap
-   * kompatibel. */
   onMessageProvider?: (walletAddress: string, postId?: string) => void
-  /** True kalau post ini yang harus di-scroll-ke dan disorot -- dipakai
-   * pas masuk dari link "Trending" di RightPanel.tsx. */
   highlighted?: boolean
 }) {
   const { walletAddress } = useWallet()
@@ -51,25 +41,16 @@ export function PostCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [togglingListing, setTogglingListing] = useState(false)
   const isOwnPost = walletAddress === post.author_wallet
-  // `orders.post_id` FK-nya `on delete restrict` (007_marketplace_
-  // negotiation.sql:57) -- begitu listing ini pernah punya order (APAPUN
-  // statusnya, termasuk yang udah 'cancelled'), delete_post() SELALU bakal
-  // gagal di server. Daripada biarin orang klik Delete terus gagal sama
-  // pesan generik, tombolnya diganti Deactivate/Activate di sini.
   const listingHasOrders = post.is_listing && (post.order_count ?? 0) > 0
   const avatarUrl = resolveAuthorAvatar(post.author_wallet, post.author_avatar_url, walletAddress, myProfile?.avatar_url)
   const cardRef = useRef<HTMLDivElement>(null)
 
-  // Scroll ke post ini begitu ditandai highlighted (habis diklik dari
-  // "Trending" di RightPanel.tsx). Cuma jalan sekali pas jadi true.
   useEffect(() => {
     if (highlighted) {
       cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [highlighted])
 
-  // Ngedit post cuma boleh buat tier Verified Max, dan cuma buat post
-  // sendiri -- lihat canEditPost() di lib/verification.ts.
   const canEdit = isOwnPost && canEditPost(myTier)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(post.content)
@@ -99,9 +80,6 @@ export function PostCard({
     setSaving(true)
     setEditError(null)
     try {
-      // edit_post() di server (supabase/002_harden_writes.sql) yang nge-cek
-      // ULANG tier boleh edit + batas karakter + kepemilikan post, bukan
-      // cuma dicek di client kayak sebelumnya.
       const { error: updateError } = await supabase.rpc('edit_post', {
         p_wallet: walletAddress,
         p_post_id: post.id,
@@ -110,7 +88,7 @@ export function PostCard({
 
       if (updateError) throw updateError
       setIsEditing(false)
-      onTipped() // re-pakai callback refresh yang sama dipakai tip/repost
+      onTipped()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save changes. Try again.'
       setEditError(message)
@@ -120,21 +98,12 @@ export function PostCard({
     }
   }
 
-  // Catatan: nggak pakai window.confirm() di sini. Musyawarah dimuat sebagai
-  // Sphere Agent lewat iframe yang di-sandbox tanpa 'allow-modals', jadi
-  // confirm()/alert()/prompt() native bakal di-ignore diem-diem sama browser
-  // (lihat console: "Ignored call to 'confirm()'..."), dan delete jadi
-  // nggak pernah ke-trigger. Solusinya: dialog konfirmasi custom di dalam app.
   async function performDelete() {
     if (!walletAddress || deleting) return
     setConfirmingDelete(false)
     setDeleting(true)
     setError(null)
     try {
-      // delete_post() di server (supabase/002_harden_writes.sql) yang nge-
-      // cek kepemilikan post -- direct .delete() ke tabel `posts` udah
-      // dicabut haknya buat role anon/authenticated, jadi ini SEKARANG satu-
-      // satunya jalan buat hapus post, bukan cuma penjaga tambahan lagi.
       const { error: deleteError } = await supabase.rpc('delete_post', {
         p_wallet: walletAddress,
         p_post_id: post.id,
@@ -150,16 +119,13 @@ export function PostCard({
     }
   }
 
-  // Dipakai gantiin Delete pas listing ini udah punya order (lihat
-  // listingHasOrders di atas) -- RPC yang sama dipakai "My Listings" di
-  // MarketplacePage.tsx, cuma triggernya dari sini juga.
   async function handleToggleListing() {
     if (!walletAddress || togglingListing) return
     setTogglingListing(true)
     setError(null)
     try {
       await setListingActive(walletAddress, post.id, !post.listing_active)
-      onTipped() // re-pakai callback refresh yang sama dipakai tip/repost/edit
+      onTipped()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to update listing status. Try again.'
       setError(message)
@@ -358,8 +324,8 @@ export function PostCard({
             )
           )}
           {post.image_url && (
-            <div className="mt-2 overflow-hidden rounded-2xl border border-surface-border">
-              <img src={post.image_url} alt="" className="max-h-[420px] w-full object-cover" loading="lazy" />
+            <div className="mt-2 overflow-hidden rounded-2xl border border-surface-border bg-surface-soft">
+              <img src={post.image_url} alt="" className="max-h-[420px] w-full object-contain" loading="lazy" />
             </div>
           )}
           {error && <p className="mt-1 text-xs text-danger">{error}</p>}

@@ -2,12 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import type { TopTippedPeriod, TopTippedRow } from '../types'
 
-/**
- * Papan top-tipped, satu RPC call (get_top_tipped, lihat
- * supabase/004_top_tipped.sql). Server yang mengagregasi total tip
- * diterima per wallet -- 'weekly' dihitung sejak Senin 00:00 UTC minggu
- * berjalan, 'all_time' dari awal.
- */
 export function useTopTipped(period: TopTippedPeriod, limit = 5) {
   const [rows, setRows] = useState<TopTippedRow[]>([])
   const [loading, setLoading] = useState(true)

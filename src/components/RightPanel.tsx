@@ -28,8 +28,6 @@ export function RightPanel({
   searchQuery: string
   onSearchChange: (v: string) => void
   onVisitProfile?: (walletAddress: string) => void
-  /** Dipanggil pas satu row di sub-tab "Trending" diklik -- navigasi ke
-   * profil author-nya sekaligus nyorotin post itu di dalam feed-nya. */
   onVisitPost?: (walletAddress: string, postId: string) => void
 }) {
   const { results: userResults, loading: searching } = useUserSearch(searchQuery)

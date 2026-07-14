@@ -4,16 +4,6 @@ import { useWallet } from '../contexts/WalletContext'
 import type { AppNotification } from '../types'
 import type { VerificationTier } from '../lib/verification'
 
-// ============================================================================
-// NOTIFICATIONS — "ala kadarnya" sama kayak useMessages.ts: query langsung
-// dari klien + dilengkapi di JS (avatar & tier actor, cuplikan post), bukan
-// lewat view/RPC. App ini juga belum pakai Supabase Realtime, jadi badge
-// notif keupdate lewat polling ringan + refresh pas tab difokusin lagi --
-// pola yang sama persis kayak useConversations().
-// ============================================================================
-
-/** Notifikasi (follow/repost/tip) buat wallet yang lagi connect, paling baru
- * duluan, dilengkapi avatar & tier verifikasi actor + cuplikan post terkait. */
 export function useNotifications() {
   const { walletAddress } = useWallet()
   const [notifications, setNotifications] = useState<AppNotification[]>([])
@@ -39,9 +29,6 @@ export function useNotifications() {
       if (queryError) throw queryError
       const rows = (data ?? []) as AppNotification[]
 
-      // Lengkapi avatar & tier verifikasi actor + cuplikan post terkait --
-      // "ala kadarnya" (best effort): kalau salah satu query pelengkap ini
-      // gagal, daftar notifikasi tetap tampil, cuma tanpa avatar/preview.
       const actorWallets = [...new Set(rows.map((n) => n.actor_wallet))]
       const postIds = [...new Set(rows.filter((n) => n.post_id).map((n) => n.post_id as string))]
 
@@ -96,8 +83,6 @@ export function useNotifications() {
     refresh()
   }, [refresh])
 
-  // Polling ringan buat badge notifikasi baru, sama persis pola di
-  // useConversations() -- lihat komentar di sana.
   useEffect(() => {
     if (!walletAddress) return
     const interval = setInterval(refresh, 10000)
@@ -115,15 +100,11 @@ export function useNotifications() {
 
   const unreadCount = notifications.reduce((sum, n) => sum + (n.read ? 0 : 1), 0)
 
-  /** Tandain semua notif yang lagi kebuka ini sebagai udah dibaca -- dipanggil
-   * pas NotificationsPage kebuka, sama kayak pola "tandain dibaca pas thread
-   * dibuka" di useThread() (useMessages.ts). */
   const markAllRead = useCallback(async () => {
     if (!walletAddress) return
     const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
     if (unreadIds.length === 0) return
 
-    // Optimistic update biar badge-nya kerasa instan.
     setNotifications((prev) => prev.map((n) => (n.read ? n : { ...n, read: true })))
 
     const { error: updateError } = await supabase.from('notifications').update({ read: true }).in('id', unreadIds)

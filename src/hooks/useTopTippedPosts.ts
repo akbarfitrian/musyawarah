@@ -2,12 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import type { TopTippedPeriod, TopTippedPostRow } from '../types'
 
-/**
- * Papan "Trending" -- top post berdasar total tip diterima, satu RPC call
- * (get_top_tipped_posts, lihat supabase/005_top_tipped_posts.sql). Sama
- * pattern-nya dengan useTopTipped.ts (leaderboard user), bedanya
- * agregasinya per post_id. Default limit 3 (top 3 post).
- */
 export function useTopTippedPosts(period: TopTippedPeriod, limit = 3) {
   const [rows, setRows] = useState<TopTippedPostRow[]>([])
   const [loading, setLoading] = useState(true)

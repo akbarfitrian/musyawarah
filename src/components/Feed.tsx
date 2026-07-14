@@ -20,11 +20,8 @@ export function Feed({
   onDeleted: () => void
   onVisitProfile?: (walletAddress: string) => void
   onVisitPost?: (postId: string) => void
-  /** Diteruskan ke PostCard -- tombol "Nego & Hire" di kartu listing. */
   onMessageProvider?: (walletAddress: string) => void
   emptyMessage?: string
-  /** post_id yang harus di-scroll-ke dan disorot (mis. abis klik "Trending"
-   * di RightPanel.tsx). */
   highlightPostId?: string | null
 }) {
   if (loading && posts.length === 0) {

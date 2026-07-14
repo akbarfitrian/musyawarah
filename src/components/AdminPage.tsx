@@ -11,17 +11,6 @@ import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { ChevronLeftIcon, LockIcon, RefundIcon } from './icons'
 
-// ============================================================================
-// ADMIN (011.1, refund lanjutan di 021.1) — satu-satunya tempat
-// mark_order_released()/mark_order_refunded() dipanggil dari UI, gantiin
-// langkah manual di SQL Editor. Proteksi BENERAN tetap di server
-// (kedua RPC divalidasi ketat terhadap TREASURY_WALLET di dalam function-nya
-// sendiri -- lihat 008/010_fix_treasury_wallet.sql & 021), jadi guard
-// `isTreasury` di sini murni UX: nyembunyiin/nolak akses halaman buat wallet
-// lain, BUKAN lapisan keamanan utama. Link ke halaman ini juga cuma nongol
-// di Sidebar kalau wallet yang connect emang treasury (lihat Sidebar.tsx).
-// ============================================================================
-
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const { walletAddress } = useWallet()
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
@@ -29,9 +18,6 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [releasingId, setReleasingId] = useState<string | null>(null)
   const [releaseError, setReleaseError] = useState<{ orderId: string; message: string } | null>(null)
 
-  // Refund (021.1) -- daftar & state terpisah dari release di atas, dua
-  // seksi berdiri sendiri karena sumbernya beda query (`completed` vs
-  // `disputed` + `refund_flagged_at`) dan RPC-nya juga beda.
   const { orders: refundOrders, loading: refundLoading, error: refundListError, refresh: refreshRefunds } =
     useRefundEligibleOrders()
   const [refundingId, setRefundingId] = useState<string | null>(null)

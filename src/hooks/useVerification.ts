@@ -9,22 +9,8 @@ import {
   type VerificationTier,
 } from '../lib/verification'
 
-/** Wallet treasury platform -- tujuan pembayaran waktu beli tier verifikasi.
- * Isi di .env.local, lihat .env.example. Kalau kosong, purchase() gagal
- * dengan pesan yang jelas alih-alih diam-diam kirim ke alamat yang salah. */
 const TREASURY_WALLET = import.meta.env.VITE_VERIFICATION_TREASURY_WALLET as string | undefined
 
-/**
- * Status verifikasi wallet yang lagi connect, plus fungsi buat beli/upgrade
- * tier. Beli tier = kirim UCT ke wallet treasury lewat sendTip() (protokol
- * yang sama dipakai buat tip biasa), lalu upsert baris di tabel
- * `verifications`. Beli tier baru selalu OVERWRITE tier lama (bukan numpuk).
- *
- * Billing bisa bulanan atau tahunan (tahunan dapet diskon 15%, lihat
- * ANNUAL_DISCOUNT di lib/verification.ts). Kalau langganan udah lewat
- * `expires_at`-nya, tier dianggap balik ke 'none' di sisi klien -- baris di
- * DB nggak dihapus, cuma nggak dianggap aktif lagi sampai diperpanjang.
- */
 export function useVerification() {
   const { walletAddress, sendTip } = useWallet()
   const [tier, setTier] = useState<VerificationTier>('none')
@@ -96,9 +82,6 @@ export function useVerification() {
       try {
         const { txHash } = await sendTip(TREASURY_WALLET, price)
 
-        // purchase_verification() di server (supabase/002_harden_writes.sql)
-        // ngitung ULANG harga dari tier_config (bukan percaya `price` dari
-        // client mentah-mentah) dan nolak tx_hash yang udah pernah dipakai.
         const { data, error: purchaseError } = await supabase.rpc('purchase_verification', {
           p_wallet: walletAddress,
           p_tier: targetTier,
@@ -124,9 +107,6 @@ export function useVerification() {
     [walletAddress, sendTip]
   )
 
-  // Dipakai kalau ada kode lain yang masih butuh harga tier tanpa mikirin
-  // interval (mis. debug/logging) -- nggak dipakai buat nampilin harga di UI,
-  // UI selalu manggil priceForInterval() langsung biar eksplisit soal interval-nya.
   const monthlyPrice = useMemo(
     () => (targetTier: VerificationTier) => TIER_CONFIG[targetTier].monthlyPriceUct,
     []

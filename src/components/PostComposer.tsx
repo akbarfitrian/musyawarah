@@ -16,7 +16,6 @@ export function PostComposer({
   onGetVerified,
 }: {
   onPosted: () => void
-  /** Dipanggil pas tombol "Upgrade" di pesan limit tercapai diklik. */
   onGetVerified?: () => void
 }) {
   const { walletAddress, connect } = useWallet()
@@ -35,7 +34,6 @@ export function PostComposer({
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
 
-  // --- Marketplace (draft §1a/§3) — toggle "Post skill listing" ---
   const [isListing, setIsListing] = useState(false)
   const [listingTitle, setListingTitle] = useState('')
   const [listingCategory, setListingCategory] = useState<string>(LISTING_CATEGORIES[0])
@@ -113,12 +111,6 @@ export function PostComposer({
         imageUrl = await uploadPostImage(walletAddress, imageFile)
       }
 
-      // Manggil server-side function (bukan .insert() langsung) -- kuota
-      // harian, batas karakter per tier, DAN sekarang validasi field listing
-      // ditegakkan ULANG di server di dalam create_post(), lihat
-      // supabase/006_marketplace_listings.sql. Cek di atas (reachedLimit,
-      // title/price kosong dll) cuma buat UX instan, bukan satu-satunya
-      // penjaga lagi.
       const { error: postError } = await supabase.rpc('create_post', {
         p_wallet: walletAddress,
         p_content: trimmed,

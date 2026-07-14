@@ -1,5 +1,3 @@
-// Avatar sederhana: warna & inisial diturunkan deterministik dari wallet address,
-// jadi tiap wallet selalu dapet warna yang sama tanpa perlu upload gambar.
 
 const HUES = [8, 28, 145, 165, 200, 220, 260, 285, 320, 340]
 
@@ -18,20 +16,10 @@ export function avatarColor(address: string) {
 }
 
 export function avatarInitial(address: string) {
-  // skip prefix umum kayak "0x" (alamat mentah) atau "@" (nametag Sphere)
-  // biar inisialnya lebih variatif dan nggak keliatan "@" doang
   const cleaned = address.replace(/^0x/i, '').replace(/^@/, '')
   return cleaned.slice(0, 1).toUpperCase()
 }
 
-/**
- * Avatar buat post/entry manapun yang authornya wallet KITA SENDIRI harus
- * selalu ambil dari ProfileContext yang live (real-time keupdate tiap avatar
- * diganti), BUKAN dari field yang nempel di post/entry (author_avatar_url)
- * yang cuma snapshot pas data itu di-fetch. Ini jaga-jaga: walau ada tempat
- * yang lupa manggil refresh() abis ganti avatar, avatar kita tetep bener di
- * mana-mana karena nggak pernah pakai data basi punya wallet sendiri.
- */
 export function resolveAuthorAvatar(
   authorWallet: string,
   fallbackAvatarUrl: string | null | undefined,

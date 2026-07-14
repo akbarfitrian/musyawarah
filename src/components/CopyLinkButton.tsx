@@ -3,16 +3,12 @@ import type { MouseEvent } from 'react'
 import { absoluteUrl } from '../utils/routes'
 import { CheckIcon, LinkIcon } from './icons'
 
-/** Tombol "copy link" generik -- dipakai di profil, post, dan thread DM
- * biar tiap halaman punya alamat sendiri yang gampang di-share, sama kayak
- * tombol "Copy link to post/profile" di X/Twitter. */
 export function CopyLinkButton({
   path,
   label = 'Copy link',
   size = 14,
   className = '',
 }: {
-  /** Path relatif dari src/utils/routes.ts, mis. profilePath(wallet). */
   path: string
   label?: string
   size?: number
@@ -27,9 +23,6 @@ export function CopyLinkButton({
     try {
       await navigator.clipboard.writeText(url)
     } catch {
-      // Fallback buat browser/iframe yang nolak Clipboard API (mis. iframe
-      // sandbox tanpa "allow-clipboard-write" -- lihat catatan soal Sphere
-      // Agent iframe di PostCard.tsx).
       const textarea = document.createElement('textarea')
       textarea.value = url
       textarea.style.position = 'fixed'

@@ -1,5 +1,3 @@
-// Kategori listing marketplace -- disalin dari Ink (src/config/categories.ts)
-// biar konsisten pas listing lama di-migrasi manual ke sini nanti (Fase 5).
 export const LISTING_CATEGORIES = [
   'Data extraction',
   'Coding',

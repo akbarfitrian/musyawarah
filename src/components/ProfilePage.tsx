@@ -28,20 +28,12 @@ export function ProfilePage({
   onVisitPost,
   highlightPostId,
 }: {
-  /** Kalau diisi, halaman ini nampilin profil wallet lain (read-only). Kalau
-   * kosong, nampilin profil wallet yang lagi connect (bisa diedit). */
   walletAddress?: string
   onChanged: () => void
   onBack?: () => void
-  /** Dipanggil pas tombol "Message" di profil orang lain diklik. */
   onMessage?: (walletAddress: string) => void
-  /** Dipanggil pas tombol "Get Verified" di profil sendiri diklik. */
   onGetVerified?: () => void
-  /** Dipanggil pas timestamp salah satu post di profil ini diklik -- buka
-   * halaman permalink post itu. */
   onVisitPost?: (postId: string) => void
-  /** post_id yang harus di-scroll-ke dan disorot di dalam feed profil ini
-   * (mis. abis klik "Trending" di RightPanel.tsx). */
   highlightPostId?: string | null
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()
@@ -49,13 +41,7 @@ export function ProfilePage({
   const targetWallet = visitedWallet ?? myWallet
 
   const { posts, loading, error, refresh } = usePosts(targetWallet ?? undefined)
-  // Posts/Listings, gak ada "All" -- beda dari Home. Berlaku buat profil
-  // sendiri MAUPUN profil yang dikunjungi (isOwnProfile gak ngaruh ke ini).
   const [profileTab, setProfileTab] = useState<'posts' | 'listings'>('posts')
-  // Listing yang inactive tetap kelihatan di profil SENDIRI (biar bisa
-  // dikelola/di-reactivate dari sini juga, sama kayak "My Listings" di
-  // MarketplacePage.tsx) tapi disembunyiin dari visitor -- sama kayak
-  // aturan tab "Listings" di Home (App.tsx).
   const profilePosts =
     profileTab === 'listings'
       ? posts.filter((p) => p.is_listing && (isOwnProfile || p.listing_active))
@@ -98,12 +84,8 @@ export function ProfilePage({
     try {
       const publicUrl = await uploadAvatar(myWallet, file)
       await updateProfile({ avatar_url: publicUrl })
-      // `refresh()` di sini itu punya usePosts LOKAL punya ProfilePage sendiri
-      // (baris atas). Tanpa ini, feed di halaman Profile masih nampilin
-      // author_avatar_url lama (snapshot pas fetch pertama), meski avatar
-      // di ProfileContext udah keupdate. onChanged() cuma refresh feed Home.
       refresh()
-      onChanged() // biar avatar baru ikut muncul di post-post lama di Home
+      onChanged()
     } catch (e) {
       setAvatarError('Failed to upload photo. Try again.')
       console.error(e)
@@ -141,8 +123,6 @@ export function ProfilePage({
     )
   }
 
-  // Cuma minta connect kalau lagi mau lihat profil sendiri. Profil orang
-  // lain tetap bisa dilihat walau wallet kita sendiri belum connect.
   if (isOwnProfile && !myWallet) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">

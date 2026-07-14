@@ -3,14 +3,6 @@ import { supabase } from '../supabaseClient'
 import type { VerificationTier } from '../lib/verification'
 import type { Profile } from '../types'
 
-/**
- * Ambil profil wallet siapa aja (read-only), buat fitur "visit profil orang
- * lain". Beda sama `useProfile` di ProfileContext yang khusus buat profil
- * wallet yang lagi connect di app ini sendiri (dan bisa di-update).
- *
- * Sekalian ambil tier verifikasi wallet itu (buat badge centang/berlian di
- * samping username-nya).
- */
 export function useViewedProfile(walletAddress: string | null) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [verificationTier, setVerificationTier] = useState<VerificationTier>('none')
