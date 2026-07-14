@@ -91,6 +91,17 @@ export function toBaseUnits(amount: number | string, decimals: number): string {
 export const DEFAULT_UCT_DECIMALS = 6
 
 /**
+ * Protocol reference Sphere Connect minta coinId dalam bentuk hex lowercase
+ * genap panjangnya (byte-aligned). Dipakai buat validasi SEBELUM coinId
+ * dikirim ke wallet lewat intent `send` -- daripada nembak nilai yang jelas2
+ * bakal ditolak wallet (mis. literal "UCT") dan nunggu error mentah balik
+ * dari sisi wallet ("coinId must be lowercase even-length hex").
+ */
+export function isValidHexCoinId(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]+$/.test(value) && value.length % 2 === 0
+}
+
+/**
  * Kebalikan dari toBaseUnits() — buat nampilin amount mentah (base units,
  * integer string dari wallet) jadi angka desimal yang enak dibaca. Dikerjain
  * pakai string manipulation (bukan Number() / division) biar konsisten sama
