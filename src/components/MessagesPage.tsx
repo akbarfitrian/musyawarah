@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useWallet } from '../contexts/WalletContext'
 import { useConversations, useThread, useListingSnapshots, useProviderListings } from '../hooks/useMessages'
 import {
@@ -198,6 +198,7 @@ function MessageBubble({
   isMine,
   listing,
   order,
+  isLatestOrderUpdate,
   myWallet,
   onVisitPost,
   onAccept,
@@ -206,6 +207,9 @@ function MessageBubble({
   onLockEscrow,
   lockingOrderId,
   lockError,
+  onRecoverLock,
+  recoveringOrderId,
+  recoverError,
   onConfirmComplete,
   confirmingOrderId,
   confirmError,
@@ -235,6 +239,7 @@ function MessageBubble({
   isMine: boolean
   listing: ListingSnapshot | undefined
   order?: Order
+  isLatestOrderUpdate: boolean
   myWallet: string | null
   onVisitPost?: (postId: string) => void
   onAccept: (messageId: string) => void
@@ -243,6 +248,9 @@ function MessageBubble({
   onLockEscrow: (order: Order) => void
   lockingOrderId: string | null
   lockError: { orderId: string; message: string } | null
+  onRecoverLock: (order: Order) => void
+  recoveringOrderId: string | null
+  recoverError: { orderId: string; message: string } | null
   onConfirmComplete: (order: Order) => void
   confirmingOrderId: string | null
   confirmError: { orderId: string; message: string } | null
@@ -273,10 +281,14 @@ function MessageBubble({
       <OrderUpdateChip
         message={message}
         order={order}
+        isLatestOrderUpdate={isLatestOrderUpdate}
         myWallet={myWallet}
         onLockEscrow={onLockEscrow}
         lockingOrderId={lockingOrderId}
         lockError={lockError}
+        onRecoverLock={onRecoverLock}
+        recoveringOrderId={recoveringOrderId}
+        recoverError={recoverError}
         onConfirmComplete={onConfirmComplete}
         confirmingOrderId={confirmingOrderId}
         confirmError={confirmError}
@@ -512,11 +524,29 @@ function ThreadView({
   onVisitProfile?: (walletAddress: string) => void
   onVisitPost?: (postId: string) => void
 }) {
-  const { walletAddress: myWallet, sendTip } = useWallet()
+  const { walletAddress: myWallet, sendTip, findRecentPayment } = useWallet()
   const { messages, loading, error, sending, refresh, sendMessage, sendOffer, acceptOffer, declineOffer, deleteMessage } =
     useThread(otherWallet)
   const listingSnapshots = useListingSnapshots(messages)
   const orderSnapshots = useOrderSnapshots(messages)
+  // Only the most recent order_update message for a given order should ever
+  // render actionable buttons (Lock escrow, Cancel order, etc). Without this,
+  // an earlier chip that happens to share the same status as the order's
+  // *current* status (e.g. a 'pending' chip from before a lock attempt, and
+  // another 'pending' chip after that attempt was aborted/reverted) each
+  // independently render their own live "Lock escrow" button, letting a
+  // buyer trigger the same action twice from two different chat bubbles.
+  const latestOrderUpdateMessageId = useMemo(() => {
+    const latest: Record<string, string> = {}
+    for (const m of messages) {
+      if (m.kind !== 'order_update') continue
+      const orderId = (m.payload as OrderUpdatePayload | null)?.order_id
+      if (!orderId) continue
+      // messages are rendered oldest -> newest, so the last one wins
+      latest[orderId] = m.id
+    }
+    return latest
+  }, [messages])
   const releasedOrderIds = Object.values(orderSnapshots)
     .filter((o) => o.status === 'released')
     .map((o) => o.id)
@@ -529,6 +559,8 @@ function ThreadView({
   const [actingOnId, setActingOnId] = useState<string | null>(null)
   const [lockingOrderId, setLockingOrderId] = useState<string | null>(null)
   const [lockError, setLockError] = useState<{ orderId: string; message: string } | null>(null)
+  const [recoveringOrderId, setRecoveringOrderId] = useState<string | null>(null)
+  const [recoverError, setRecoverError] = useState<{ orderId: string; message: string } | null>(null)
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null)
   const [confirmError, setConfirmError] = useState<{ orderId: string; message: string } | null>(null)
   const [deliveringOrderId, setDeliveringOrderId] = useState<string | null>(null)
@@ -662,20 +694,41 @@ function ThreadView({
       await refresh()
 
       let txHash: string
-      try {
-        const tip = await sendTip(TREASURY_WALLET, order.amount)
-        txHash = tip.txHash
-      } catch (tipError) {
+
+      // A previous lock attempt on this order may have already sent the
+      // payment on-chain and then gotten cut off before we could record it
+      // (e.g. the page was refreshed/closed while waiting on the wallet).
+      // Check the wallet's own history for a matching send before asking
+      // for a brand new payment, so we never send the same amount twice.
+      const alreadySent = await findRecentPayment(TREASURY_WALLET, order.amount)
+      if (alreadySent) {
+        txHash = alreadySent.txHash
+      } else {
         try {
-          await abortEscrowLock(order.id, myWallet)
-          await refresh()
-        } catch (abortError) {
-          console.error(
-            '[MUSYAWARAH] Gagal abort reservasi escrow -- bakal ke-cover auto_revert_stale_escrow_locks dalam <=20 menit:',
-            abortError
-          )
+          const tip = await sendTip(TREASURY_WALLET, order.amount)
+          txHash = tip.txHash
+        } catch (tipError) {
+          // Don't trust the rejection blindly — the wallet call can fail
+          // locally (timeout, dropped connection, reload) even after the
+          // transaction was actually broadcast and confirmed. Re-check
+          // history before releasing the reservation; only abort if we can
+          // confirm nothing actually went out.
+          const recovered = await findRecentPayment(TREASURY_WALLET, order.amount)
+          if (recovered) {
+            txHash = recovered.txHash
+          } else {
+            try {
+              await abortEscrowLock(order.id, myWallet)
+              await refresh()
+            } catch (abortError) {
+              console.error(
+                '[MUSYAWARAH] Gagal abort reservasi escrow -- bakal ke-cover auto_revert_stale_escrow_locks dalam <=20 menit:',
+                abortError
+              )
+            }
+            throw tipError
+          }
         }
-        throw tipError
       }
       await lockEscrowOrder(order.id, myWallet, txHash)
       await refresh()
@@ -685,6 +738,35 @@ function ThreadView({
       setLockError({ orderId: order.id, message })
     } finally {
       setLockingOrderId(null)
+    }
+  }
+
+  async function handleRecoverLock(order: Order) {
+    if (!myWallet) return
+    setRecoverError(null)
+    if (!TREASURY_WALLET) return
+    setRecoveringOrderId(order.id)
+    try {
+      const found = await findRecentPayment(TREASURY_WALLET, order.amount)
+      if (found) {
+        await lockEscrowOrder(order.id, myWallet, found.txHash)
+      } else {
+        await abortEscrowLock(order.id, myWallet)
+      }
+      await refresh()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : ''
+      // The order may have already moved on by itself (e.g. the server-side
+      // 15-minute auto-revert already kicked in, or it got locked/aborted
+      // from another tab) — that's a fine outcome, just resync the UI.
+      if (message.includes('not pending') || message.includes('not in a locking state')) {
+        await refresh()
+        return
+      }
+      console.error('[MUSYAWARAH] Gagal mulihin lock escrow yang nyangkut:', e)
+      setRecoverError({ orderId: order.id, message: message || 'Failed to check/recover this order. Try again.' })
+    } finally {
+      setRecoveringOrderId(null)
     }
   }
 
@@ -874,6 +956,7 @@ function ThreadView({
                 isMine={isMine}
                 listing={postId ? listingSnapshots[postId] : undefined}
                 order={orderId ? orderSnapshots[orderId] : undefined}
+                isLatestOrderUpdate={orderId ? latestOrderUpdateMessageId[orderId] === m.id : false}
                 myWallet={myWallet}
                 onVisitPost={onVisitPost}
                 onAccept={handleAccept}
@@ -882,6 +965,9 @@ function ThreadView({
                 onLockEscrow={handleLockEscrow}
                 lockingOrderId={lockingOrderId}
                 lockError={lockError}
+                onRecoverLock={handleRecoverLock}
+                recoveringOrderId={recoveringOrderId}
+                recoverError={recoverError}
                 onConfirmComplete={handleConfirmComplete}
                 confirmingOrderId={confirmingOrderId}
                 confirmError={confirmError}

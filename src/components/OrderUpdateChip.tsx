@@ -18,10 +18,14 @@ const CHIP_STYLE: Record<OrderStatus, string> = {
 export function OrderUpdateChip({
   message,
   order,
+  isLatestOrderUpdate,
   myWallet,
   onLockEscrow,
   lockingOrderId,
   lockError,
+  onRecoverLock,
+  recoveringOrderId,
+  recoverError,
   onConfirmComplete,
   confirmingOrderId,
   confirmError,
@@ -47,10 +51,14 @@ export function OrderUpdateChip({
 }: {
   message: Message
   order?: Order
+  isLatestOrderUpdate: boolean
   myWallet: string | null
   onLockEscrow: (order: Order) => void
   lockingOrderId: string | null
   lockError: { orderId: string; message: string } | null
+  onRecoverLock?: (order: Order) => void
+  recoveringOrderId?: string | null
+  recoverError?: { orderId: string; message: string } | null
   onConfirmComplete: (order: Order) => void
   confirmingOrderId: string | null
   confirmError: { orderId: string; message: string } | null
@@ -87,12 +95,15 @@ export function OrderUpdateChip({
     (message.payload as OrderUpdatePayload | null)?.status ?? order?.status
 
   const messageOwnDeliverableUrl = (message.payload as OrderUpdatePayload | null)?.deliverable_url ?? null
-  const isCurrentStatus = Boolean(order) && messageStatus === order!.status && !messageOwnDeliverableUrl
+  const isCurrentStatus =
+    Boolean(order) && messageStatus === order!.status && !messageOwnDeliverableUrl && isLatestOrderUpdate
 
   const isDeliveryMessage = Boolean(messageOwnDeliverableUrl)
-  const isCurrentDelivery = isDeliveryMessage && Boolean(order) && order!.status === 'locked'
+  const isCurrentDelivery =
+    isDeliveryMessage && Boolean(order) && order!.status === 'locked' && isLatestOrderUpdate
 
   const isLocking = Boolean(order) && lockingOrderId === order!.id
+  const isRecovering = Boolean(order) && recoveringOrderId === order!.id
   const isConfirming = Boolean(order) && confirmingOrderId === order!.id
   const isCancelling = Boolean(order) && cancellingOrderId === order!.id
   const isDelivering = Boolean(order) && deliveringOrderId === order!.id
@@ -100,6 +111,8 @@ export function OrderUpdateChip({
   const isRevising = Boolean(order) && revisingOrderId === order!.id
 
   const showLockingInProgress = isCurrentStatus && messageStatus === 'locking'
+  const canRecoverLock =
+    showLockingInProgress && myWallet === order!.buyer_wallet && Boolean(onRecoverLock)
   const canLockEscrow = isCurrentStatus && messageStatus === 'pending' && myWallet === order!.buyer_wallet
   const canCancelOrder =
     isCurrentStatus &&
@@ -172,6 +185,25 @@ export function OrderUpdateChip({
         <p className="max-w-[85%] text-center text-[11px] text-ink-faint">
           Waiting for the on-chain transaction to confirm…
         </p>
+      )}
+      {canRecoverLock && (
+        <>
+          <p className="max-w-[85%] text-center text-[11px] text-ink-faint">
+            Refreshed or closed the page mid-transaction? Check whether the payment actually went through instead
+            of waiting.
+          </p>
+          <button
+            type="button"
+            className="rounded-full border border-surface-border px-3 py-1 text-[11px] font-medium text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50"
+            onClick={() => onRecoverLock!(order!)}
+            disabled={isRecovering}
+          >
+            {isRecovering ? 'Checking…' : 'Check transaction / cancel this attempt'}
+          </button>
+        </>
+      )}
+      {order && recoverError?.orderId === order.id && (
+        <p className="max-w-[85%] text-center text-[11px] text-danger">{recoverError.message}</p>
       )}
 
       {canCancelOrder && (

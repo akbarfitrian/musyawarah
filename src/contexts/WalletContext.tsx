@@ -39,6 +39,7 @@ interface WalletContextValue {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string; simulated: boolean; verified: boolean }>
+  findRecentPayment: (toWallet: string, amount: number, windowMs?: number) => Promise<{ txHash: string } | null>
   assets: WalletAsset[]
   totalFiat: number | null
   balanceLoading: boolean
@@ -309,6 +310,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [resetLocalState])
 
+  const findRecentPayment = useCallback(
+    async (toWallet: string, amount: number, windowMs = 15 * 60 * 1000) => {
+      const client = clientRef.current
+      if (!client) return null
+
+      try {
+        if (!uctCoinRef.current) {
+          uctCoinRef.current = await resolveUctCoin(client)
+        }
+        const { decimals } = uctCoinRef.current
+        const amountBase = toBaseUnits(amount, decimals)
+
+        const history = await client.query<unknown>('sphere_getHistory')
+        const match = findMatchingSentHistoryEntry(history, {
+          toWallet,
+          amountBase,
+          sinceMs: Date.now() - windowMs,
+        })
+        if (!match) return null
+        const identifier = match.transferId ?? match.id
+        return identifier ? { txHash: identifier } : null
+      } catch (err) {
+        console.warn('[MUSYAWARAH] findRecentPayment: gagal ngecek riwayat wallet:', err)
+        return null
+      }
+    },
+    []
+  )
+
   const sendTip = useCallback(async (toWallet: string, amount: number) => {
     const client = clientRef.current
     if (!client || !walletAddress) throw new Error('Wallet not connected')
@@ -395,6 +425,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connect,
         disconnect,
         sendTip,
+        findRecentPayment,
         assets,
         totalFiat,
         balanceLoading,
