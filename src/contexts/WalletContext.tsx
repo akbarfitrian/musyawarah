@@ -38,7 +38,7 @@ interface WalletContextValue {
   error: string | null
   connect: () => Promise<void>
   disconnect: () => Promise<void>
-  sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string | null; simulated: boolean }>
+  sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string; simulated: boolean; verified: boolean }>
   assets: WalletAsset[]
   totalFiat: number | null
   balanceLoading: boolean
@@ -46,6 +46,51 @@ interface WalletContextValue {
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined)
+
+interface HistoryEntryLike {
+  type?: string
+  amount?: string | number
+  timestamp?: number
+  transferId?: string
+  id?: string
+  recipientNametag?: string
+  recipientAddress?: string
+  recipientPubkey?: string
+}
+
+function normalizeHandle(value: string): string {
+  return value.replace(/^DIRECT:\/\//, '').replace(/^@/, '').toLowerCase().trim()
+}
+
+/**
+ * Finds the most recent outgoing ('SENT') entry in the wallet's own history
+ * that matches the recipient and amount we just tried to send. Used so we can
+ * record the SAME identifier the wallet's "Transaction History" UI shows,
+ * instead of guessing at the shape of the intent('send') response.
+ */
+function findMatchingSentHistoryEntry(
+  history: unknown,
+  opts: { toWallet: string; amountBase: string; sinceMs: number }
+): { transferId?: string; id?: string } | undefined {
+  if (!Array.isArray(history)) return undefined
+  const targetHandle = normalizeHandle(opts.toWallet)
+
+  const candidates = (history as HistoryEntryLike[]).filter((e) => {
+    if (e?.type !== 'SENT') return false
+    if (typeof e.timestamp === 'number' && e.timestamp < opts.sinceMs) return false
+    if (String(e.amount ?? '') !== opts.amountBase) return false
+    const nametag = e.recipientNametag ? normalizeHandle(e.recipientNametag) : ''
+    const address = e.recipientAddress ? normalizeHandle(e.recipientAddress) : ''
+    const pubkey = e.recipientPubkey ? normalizeHandle(e.recipientPubkey) : ''
+    return nametag === targetHandle || address === targetHandle || pubkey === targetHandle
+  })
+
+  if (candidates.length === 0) return undefined
+
+  candidates.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
+  const best = candidates[0]
+  return { transferId: best.transferId, id: best.id }
+}
 
 async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
   const findUct = (list: unknown): { coinId?: string; decimals?: number } | undefined => {
@@ -272,10 +317,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       uctCoinRef.current = await resolveUctCoin(client)
     }
     const { coinId, decimals } = uctCoinRef.current
+    const amountBase = toBaseUnits(amount, decimals)
 
     const result = (await client.intent('send', {
       to: formatRecipient(toWallet),
-      amount: toBaseUnits(amount, decimals),
+      amount: amountBase,
       coinId,
     })) as {
       txHash?: string
@@ -288,7 +334,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       token?: { id?: string }
     }
 
-    const identifier =
+    // The intent response shape isn't formally documented by the wallet SDK,
+    // so this is a best-effort guess at where an identifier might live.
+    let identifier =
       result?.txHash ??
       result?.hash ??
       result?.tx?.hash ??
@@ -301,17 +349,38 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       result?.token?.id ??
       null
 
-    const txHash =
-      identifier ??
-      `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    if (!identifier) {
+    // Cross-check against the wallet's own transaction history and prefer
+    // whatever it reports there. This is what the "Transaction History" panel
+    // in the wallet itself displays (Transfer ID / Token ID), so recording
+    // the same value here means what we store for release/refund proof will
+    // actually match what a human can verify in the wallet UI.
+    let verified = Boolean(identifier)
+    try {
+      const history = await client.query<unknown>('sphere_getHistory')
+      const match = findMatchingSentHistoryEntry(history, {
+        toWallet,
+        amountBase,
+        sinceMs: Date.now() - 2 * 60 * 1000,
+      })
+      if (match) {
+        identifier = match.transferId ?? match.id ?? identifier
+        verified = true
+      }
+    } catch (err) {
       console.warn(
-        '[MUSYAWARAH] sendTip: wallet gak ngasih identifier (txHash/transferId/dst) yang dikenali di respons intent send -- pakai fallback client-side. Cek bentuk respons asli di bawah ini, mungkin perlu nambah field baru ke daftar di atas.',
-        result
+        '[MUSYAWARAH] sendTip: gagal cross-check ke sphere_getHistory (dilanjut pakai identifier dari intent result kalau ada):',
+        err
       )
     }
+
+    if (!identifier) {
+      throw new Error(
+        'Payment may have been sent, but the wallet did not return a verifiable transaction id. Check your wallet\u2019s transaction history before retrying — do not release/refund again without confirming.'
+      )
+    }
+
     refreshBalance()
-    return { txHash, simulated: false }
+    return { txHash: identifier, simulated: false, verified }
   }, [walletAddress, refreshBalance])
 
   return (

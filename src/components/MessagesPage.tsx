@@ -661,7 +661,7 @@ function ThreadView({
       await beginEscrowLock(order.id, myWallet)
       await refresh()
 
-      let txHash: string | null = null
+      let txHash: string
       try {
         const tip = await sendTip(TREASURY_WALLET, order.amount)
         txHash = tip.txHash
@@ -677,8 +677,7 @@ function ThreadView({
         }
         throw tipError
       }
-      const safeTxHash = txHash ?? `client-${Date.now()}`
-      await lockEscrowOrder(order.id, myWallet, safeTxHash)
+      await lockEscrowOrder(order.id, myWallet, txHash)
       await refresh()
     } catch (e) {
       console.error('[MUSYAWARAH] Gagal lock escrow:', e)
