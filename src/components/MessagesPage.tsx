@@ -613,7 +613,10 @@ function ThreadView({
     ? ((lastListingMessage.payload as { post_id: string }).post_id)
     : undefined
   const referencedListing = lastListingPostId ? listingSnapshots[lastListingPostId] : undefined
-  const referencedListingIsActive = referencedListing?.listing_active === true
+  // A listing can only be offered on if it belongs to the person we're chatting
+  // with — never our own listing, even if it was referenced earlier in this thread.
+  const referencedListingIsActive =
+    referencedListing?.listing_active === true && referencedListing?.author_wallet === otherWallet
 
   const offerCandidates: ListingSnapshot[] = [
     ...(referencedListingIsActive && referencedListing ? [referencedListing] : []),
