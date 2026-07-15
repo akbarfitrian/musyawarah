@@ -12,7 +12,7 @@ export type Route =
   | { view: 'admin' }
 
 export function homePath() {
-  return '/'
+  return '/home'
 }
 export function notificationsPath() {
   return '/notifications'
@@ -35,19 +35,28 @@ export function settingsPath() {
 export function adminPath() {
   return '/admin'
 }
+// Wallet-specific profiles get the Twitter/X-style "/@handle" shape.
+// No-wallet ("my profile") keeps the plain "/profile" path.
 export function profilePath(wallet?: string) {
-  return wallet ? `/profile/${encodeURIComponent(wallet)}` : '/profile'
+  return wallet ? `/@${encodeURIComponent(wallet)}` : '/profile'
 }
 export function postPath(postId: string) {
   return `/post/${encodeURIComponent(postId)}`
 }
 
-export function parseHash(hash: string): Route {
-  const path = hash.replace(/^#/, '') || '/'
+export function parsePath(pathname: string): Route {
+  const path = pathname || '/'
   const [seg1, seg2] = path.split('/').filter(Boolean)
+
+  // "/@handle" -> profile. Checked first since "@" isn't a reserved segment.
+  if (seg1 && seg1.startsWith('@')) {
+    const wallet = seg1.slice(1)
+    return { view: 'profile', wallet: wallet ? decodeURIComponent(wallet) : undefined }
+  }
 
   switch (seg1) {
     case undefined:
+    case 'home':
       return { view: 'home' }
     case 'notifications':
       return { view: 'notifications' }
@@ -73,5 +82,5 @@ export function parseHash(hash: string): Route {
 }
 
 export function absoluteUrl(path: string) {
-  return `${window.location.origin}${window.location.pathname}${window.location.search}#${path}`
+  return `${window.location.origin}${path}`
 }
