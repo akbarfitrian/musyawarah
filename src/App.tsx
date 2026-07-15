@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { WalletProvider, useWallet } from './contexts/WalletContext'
 import { ProfileProvider } from './contexts/ProfileContext'
@@ -32,7 +32,7 @@ import { MessagesPage } from './components/MessagesPage'
 import { MarketplacePage } from './components/MarketplacePage'
 import { NotificationsPage } from './components/NotificationsPage'
 import { SettingsPage } from './components/SettingsPage'
-import { AdminPage } from './components/AdminPage'
+import { AdminShell } from './components/admin/AdminShell'
 import { ConnectWallet } from './components/ConnectWallet'
 import { BellIcon, BriefcaseIcon, FeatherIcon, LogoMark, SettingsIcon } from './components/icons'
 import { focusComposer } from './utils/composer'
@@ -267,10 +267,6 @@ function AppShell() {
           <div className="px-4 pt-4">
             <SettingsPage onBack={goHome} />
           </div>
-        ) : route.view === 'admin' ? (
-          <div className="px-4 pt-4">
-            <AdminPage onBack={goHome} />
-          </div>
         ) : route.view === 'marketplace' ? (
           <div className="px-4 pt-4">
             <MarketplacePage
@@ -290,7 +286,7 @@ function AppShell() {
               onChanged={refresh}
             />
           </div>
-        ) : (
+        ) : route.view === 'admin' ? null : (
           <div className="px-4 pt-4">
             <ProfilePage
               walletAddress={route.wallet}
@@ -401,12 +397,34 @@ function AppShell() {
   )
 }
 
+function AppRoot() {
+  const { route, navigate } = useRouter()
+  const { walletAddress, isAutoConnecting } = useWallet()
+  const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
+  const hasAutoRedirected = useRef(false)
+
+  useEffect(() => {
+    if (hasAutoRedirected.current) return
+    if (isAutoConnecting) return
+    if (route.view === 'home' && isTreasury) {
+      hasAutoRedirected.current = true
+      navigate(adminPath(), { replace: true })
+    }
+  }, [isAutoConnecting, isTreasury, route.view, navigate])
+
+  if (route.view === 'admin') {
+    return <AdminShell onExit={() => navigate(homePath())} />
+  }
+
+  return <AppShell />
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <WalletProvider>
         <ProfileProvider>
-          <AppShell />
+          <AppRoot />
         </ProfileProvider>
       </WalletProvider>
     </ThemeProvider>

@@ -131,6 +131,8 @@ export interface Order {
   completion_reason: 'buyer_no_confirm_72h' | null
   refund_flagged_at: string | null
   refunded_at: string | null
+  release_tx_hash: string | null
+  refund_tx_hash: string | null
 }
 
 export interface Review {

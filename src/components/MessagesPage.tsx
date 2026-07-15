@@ -547,8 +547,14 @@ function ThreadView({
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages.length])
+    if (loading) return
+    // Wait a frame so images/avatars/order chips finish laying out before we pin to bottom,
+    // otherwise the scroll can land short of the true last message.
+    const raf = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ block: 'end' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [loading, messages.length, otherWallet])
 
   useEffect(() => {
     if (!myWallet || releasedOrderIds.length === 0) return
@@ -1021,7 +1027,13 @@ export function MessagesPage({
   if (openWallet) {
     return (
       <div className="h-[calc(100vh-56px)] md:h-[calc(100vh-57px)]">
-        <ThreadView otherWallet={openWallet} onBack={backToList} onVisitProfile={onVisitProfile} onVisitPost={onVisitPost} />
+        <ThreadView
+          key={openWallet}
+          otherWallet={openWallet}
+          onBack={backToList}
+          onVisitProfile={onVisitProfile}
+          onVisitPost={onVisitPost}
+        />
       </div>
     )
   }

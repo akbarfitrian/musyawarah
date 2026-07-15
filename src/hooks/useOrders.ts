@@ -151,18 +151,20 @@ export async function submitDeliverableRevision(orderId: string, providerWallet:
   if (error) throw error
 }
 
-export async function markOrderReleased(orderId: string, operatorWallet: string) {
+export async function markOrderReleased(orderId: string, operatorWallet: string, releaseTxHash: string) {
   const { error } = await supabase.rpc('mark_order_released', {
     p_order_id: orderId,
     p_operator_wallet: operatorWallet,
+    p_release_tx_hash: releaseTxHash,
   })
   if (error) throw error
 }
 
-export async function markOrderRefunded(orderId: string, operatorWallet: string) {
+export async function markOrderRefunded(orderId: string, operatorWallet: string, refundTxHash: string) {
   const { error } = await supabase.rpc('mark_order_refunded', {
     p_order_id: orderId,
     p_operator_wallet: operatorWallet,
+    p_refund_tx_hash: refundTxHash,
   })
   if (error) throw error
 }
@@ -176,8 +178,8 @@ export function useCompletedOrders() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const { data, error: queryError } = await supabase
@@ -205,20 +207,145 @@ export function useCompletedOrders() {
         }
       }
 
-      setOrders(rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null })))
+      const nextRows = rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null }))
+      setOrders((prev) => {
+        const same =
+          prev.length === nextRows.length &&
+          prev.every((o, i) => o.id === nextRows[i].id && o.status === nextRows[i].status)
+        return same ? prev : nextRows
+      })
     } catch (e) {
-      setError('Failed to load completed orders.')
+      if (showSpinner) setError('Failed to load completed orders.')
       console.error(e)
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }, [])
+
+  const refresh = useCallback(() => load(true), [load])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    const interval = setInterval(tick, 5000)
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [load])
+
   return { orders, loading, error, refresh }
+}
+
+export interface AuditLogRow extends CompletedOrderRow {
+  action: 'released' | 'refunded'
+  actioned_at: string
+}
+
+export function useOrderAuditLog(limit = 100) {
+  const [rows, setRows] = useState<AuditLogRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async (showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
+    setError(null)
+    try {
+      const [releasedRes, refundedRes] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('*')
+          .eq('status', 'released')
+          .order('released_at', { ascending: false })
+          .limit(limit),
+        supabase
+          .from('orders')
+          .select('*')
+          .eq('status', 'refunded')
+          .order('refunded_at', { ascending: false })
+          .limit(limit),
+      ])
+
+      if (releasedRes.error) throw releasedRes.error
+      if (refundedRes.error) throw refundedRes.error
+
+      const released = (releasedRes.data ?? []) as Order[]
+      const refunded = (refundedRes.data ?? []) as Order[]
+
+      const postIds = [...new Set([...released, ...refunded].map((o) => o.post_id))]
+      let titleById: Record<string, string | null> = {}
+      if (postIds.length > 0) {
+        const { data: postsData, error: postsError } = await supabase
+          .from('posts')
+          .select('id, listing_title')
+          .in('id', postIds)
+        if (postsError) {
+          console.warn('[MUSYAWARAH] Gagal ngambil judul listing buat Audit Log:', postsError)
+        } else {
+          titleById = Object.fromEntries(
+            ((postsData ?? []) as { id: string; listing_title: string | null }[]).map((p) => [p.id, p.listing_title])
+          )
+        }
+      }
+
+      const merged: AuditLogRow[] = [
+        ...released.map((o) => ({
+          ...o,
+          listing_title: titleById[o.post_id] ?? null,
+          action: 'released' as const,
+          actioned_at: o.released_at ?? o.completed_at ?? o.created_at,
+        })),
+        ...refunded.map((o) => ({
+          ...o,
+          listing_title: titleById[o.post_id] ?? null,
+          action: 'refunded' as const,
+          actioned_at: o.refunded_at ?? o.completed_at ?? o.created_at,
+        })),
+      ].sort((a, b) => new Date(b.actioned_at).getTime() - new Date(a.actioned_at).getTime())
+
+      setRows((prev) => {
+        const same =
+          prev.length === merged.length &&
+          prev.every((r, i) => r.id === merged[i].id && r.action === merged[i].action)
+        return same ? prev : merged
+      })
+    } catch (e) {
+      if (showSpinner) setError('Failed to load audit log.')
+      console.error(e)
+    } finally {
+      if (showSpinner) setLoading(false)
+    }
+  }, [limit])
+
+  const refresh = useCallback(() => load(true), [load])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    const interval = setInterval(tick, 5000)
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [load])
+
+  return { rows, loading, error, refresh }
 }
 
 export function useRefundEligibleOrders() {
@@ -226,8 +353,8 @@ export function useRefundEligibleOrders() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (showSpinner: boolean) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const { data, error: queryError } = await supabase
@@ -256,18 +383,40 @@ export function useRefundEligibleOrders() {
         }
       }
 
-      setOrders(rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null })))
+      const nextRows = rows.map((o) => ({ ...o, listing_title: titleById[o.post_id] ?? null }))
+      setOrders((prev) => {
+        const same =
+          prev.length === nextRows.length &&
+          prev.every((o, i) => o.id === nextRows[i].id && o.status === nextRows[i].status)
+        return same ? prev : nextRows
+      })
     } catch (e) {
-      setError('Failed to load refund-eligible orders.')
+      if (showSpinner) setError('Failed to load refund-eligible orders.')
       console.error(e)
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }, [])
+
+  const refresh = useCallback(() => load(true), [load])
 
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') load(false)
+    }
+    const interval = setInterval(tick, 5000)
+    window.addEventListener('focus', tick)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', tick)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [load])
 
   return { orders, loading, error, refresh }
 }

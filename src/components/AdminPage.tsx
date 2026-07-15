@@ -12,7 +12,7 @@ import { timeAgo } from '../utils/time'
 import { ChevronLeftIcon, LockIcon, RefundIcon } from './icons'
 
 export function AdminPage({ onBack }: { onBack: () => void }) {
-  const { walletAddress } = useWallet()
+  const { walletAddress, sendTip } = useWallet()
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
   const { orders, loading, error, refresh } = useCompletedOrders()
   const [releasingId, setReleasingId] = useState<string | null>(null)
@@ -23,32 +23,36 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   const [refundingId, setRefundingId] = useState<string | null>(null)
   const [refundError, setRefundError] = useState<{ orderId: string; message: string } | null>(null)
 
-  async function handleRelease(orderId: string) {
+  async function handleRelease(order: (typeof orders)[number]) {
     if (!walletAddress) return
     setReleaseError(null)
-    setReleasingId(orderId)
+    setReleasingId(order.id)
     try {
-      await markOrderReleased(orderId, walletAddress)
+      const { txHash } = await sendTip(order.provider_wallet, order.amount)
+      if (!txHash) throw new Error('The payout transaction did not return a transaction hash.')
+      await markOrderReleased(order.id, walletAddress, txHash)
       await refresh()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to release payout. Try again.'
-      setReleaseError({ orderId, message })
+      setReleaseError({ orderId: order.id, message })
       console.error('[MUSYAWARAH] Gagal release payout:', e)
     } finally {
       setReleasingId(null)
     }
   }
 
-  async function handleRefund(orderId: string) {
+  async function handleRefund(order: (typeof refundOrders)[number]) {
     if (!walletAddress) return
     setRefundError(null)
-    setRefundingId(orderId)
+    setRefundingId(order.id)
     try {
-      await markOrderRefunded(orderId, walletAddress)
+      const { txHash } = await sendTip(order.buyer_wallet, order.amount)
+      if (!txHash) throw new Error('The refund transaction did not return a transaction hash.')
+      await markOrderRefunded(order.id, walletAddress, txHash)
       await refreshRefunds()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to refund buyer. Try again.'
-      setRefundError({ orderId, message })
+      setRefundError({ orderId: order.id, message })
       console.error('[MUSYAWARAH] Gagal refund buyer:', e)
     } finally {
       setRefundingId(null)
@@ -118,7 +122,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               <button
                 type="button"
                 className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500 px-3.5 py-1.5 text-[12px] font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
-                onClick={() => handleRelease(order.id)}
+                onClick={() => handleRelease(order)}
                 disabled={releasingId === order.id}
               >
                 <LockIcon size={12} />
@@ -167,7 +171,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               <button
                 type="button"
                 className="flex shrink-0 items-center gap-1.5 rounded-full bg-danger px-3.5 py-1.5 text-[12px] font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
-                onClick={() => handleRefund(order.id)}
+                onClick={() => handleRefund(order)}
                 disabled={refundingId === order.id}
               >
                 <RefundIcon size={12} />

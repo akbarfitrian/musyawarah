@@ -243,8 +243,24 @@ create table if not exists orders (
   refund_flagged_at timestamptz,
   refunded_at timestamptz,
   locking_at timestamptz,
+  release_tx_hash text,
+  refund_tx_hash text,
   check (buyer_wallet <> provider_wallet)
 );
+
+alter table orders drop constraint if exists orders_release_tx_hash_length;
+alter table orders add constraint orders_release_tx_hash_length
+  check (release_tx_hash is null or char_length(release_tx_hash) <= 200);
+
+alter table orders drop constraint if exists orders_refund_tx_hash_length;
+alter table orders add constraint orders_refund_tx_hash_length
+  check (refund_tx_hash is null or char_length(refund_tx_hash) <= 200);
+
+create unique index if not exists idx_orders_release_tx_hash_unique
+  on orders (release_tx_hash) where release_tx_hash is not null;
+
+create unique index if not exists idx_orders_refund_tx_hash_unique
+  on orders (refund_tx_hash) where refund_tx_hash is not null;
 
 alter table orders drop constraint if exists orders_status_check;
 alter table orders add constraint orders_status_check
@@ -1706,7 +1722,8 @@ $$;
 
 create or replace function mark_order_released(
   p_order_id uuid,
-  p_operator_wallet text
+  p_operator_wallet text,
+  p_release_tx_hash text
 )
 returns orders
 language plpgsql
@@ -1723,12 +1740,21 @@ begin
     raise exception 'only the treasury/operator wallet can release an order';
   end if;
 
-  update orders
-  set status = 'released',
-      released_at = now()
-  where id = p_order_id
-    and status = 'completed'
-  returning * into v_order;
+  if p_release_tx_hash is null or length(trim(p_release_tx_hash)) = 0 then
+    raise exception 'release_tx_hash is required -- send the payout to the provider on-chain first, then release with that transaction hash';
+  end if;
+
+  begin
+    update orders
+    set status = 'released',
+        released_at = now(),
+        release_tx_hash = p_release_tx_hash
+    where id = p_order_id
+      and status = 'completed'
+    returning * into v_order;
+  exception when unique_violation then
+    raise exception 'this transaction hash has already been used to release a different order -- each payout needs its own unique on-chain transaction, even to the same recipient for the same amount';
+  end;
 
   if v_order.id is null then
     select * into v_order from orders where id = p_order_id;
@@ -1756,7 +1782,8 @@ $$;
 
 create or replace function mark_order_refunded(
   p_order_id uuid,
-  p_operator_wallet text
+  p_operator_wallet text,
+  p_refund_tx_hash text
 )
 returns orders
 language plpgsql
@@ -1773,13 +1800,22 @@ begin
     raise exception 'only the treasury/operator wallet can refund an order';
   end if;
 
-  update orders
-  set status = 'refunded',
-      refunded_at = now()
-  where id = p_order_id
-    and status = 'disputed'
-    and refund_flagged_at is not null
-  returning * into v_order;
+  if p_refund_tx_hash is null or length(trim(p_refund_tx_hash)) = 0 then
+    raise exception 'refund_tx_hash is required -- send the refund to the buyer on-chain first, then confirm with that transaction hash';
+  end if;
+
+  begin
+    update orders
+    set status = 'refunded',
+        refunded_at = now(),
+        refund_tx_hash = p_refund_tx_hash
+    where id = p_order_id
+      and status = 'disputed'
+      and refund_flagged_at is not null
+    returning * into v_order;
+  exception when unique_violation then
+    raise exception 'this transaction hash has already been used to refund a different order -- each refund needs its own unique on-chain transaction, even to the same recipient for the same amount';
+  end;
 
   if v_order.id is null then
     select * into v_order from orders where id = p_order_id;
@@ -2259,8 +2295,8 @@ grant execute on function mark_order_delivered(uuid, text, text) to anon, authen
 grant execute on function confirm_order_complete(uuid, text) to anon, authenticated;
 grant execute on function dispute_order(uuid, text, text) to anon, authenticated;
 grant execute on function submit_deliverable_revision(uuid, text, text) to anon, authenticated;
-grant execute on function mark_order_released(uuid, text) to anon, authenticated;
-grant execute on function mark_order_refunded(uuid, text) to anon, authenticated;
+grant execute on function mark_order_released(uuid, text, text) to anon, authenticated;
+grant execute on function mark_order_refunded(uuid, text, text) to anon, authenticated;
 grant execute on function set_listing_active(text, uuid, boolean) to anon, authenticated;
 
 grant execute on function submit_review(uuid, text, int, text) to anon, authenticated;
