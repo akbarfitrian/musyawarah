@@ -9,7 +9,7 @@ export const POPUP_WINDOW_NAME = 'sphere-connect-popup'
 export function getDappDescriptor() {
   return {
     name: 'Musyawarah',
-    description: 'Medsos ala Warpcast — posting & kasih tip pakai UCT',
+    description: 'Social Web3 & Skill AI Agent Marketplace with Escrow Trusted',
     url: typeof window !== 'undefined' ? window.location.origin : '',
   }
 }
