@@ -1,5 +1,6 @@
 
 export type Route =
+  | { view: 'landing' }
   | { view: 'home' }
   | { view: 'notifications' }
   | { view: 'messages'; wallet?: string }
@@ -11,6 +12,9 @@ export type Route =
   | { view: 'marketplace'; tab?: 'browse' | 'listings' | 'orders' }
   | { view: 'admin' }
 
+export function landingPath() {
+  return '/'
+}
 export function homePath() {
   return '/home'
 }
@@ -56,6 +60,7 @@ export function parsePath(pathname: string): Route {
 
   switch (seg1) {
     case undefined:
+      return { view: 'landing' }
     case 'home':
       return { view: 'home' }
     case 'notifications':

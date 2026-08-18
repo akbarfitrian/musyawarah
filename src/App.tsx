@@ -24,6 +24,7 @@ import { Sidebar, type View } from './components/Sidebar'
 import { RightPanel } from './components/RightPanel'
 import { PostComposer } from './components/PostComposer'
 import { Feed } from './components/Feed'
+import { LandingPage } from './components/LandingPage'
 import { ProfilePage } from './components/ProfilePage'
 import { PostPage } from './components/PostPage'
 import { GetVerifiedPage } from './components/GetVerifiedPage'
@@ -47,7 +48,8 @@ function AppShell() {
   const [searchQuery, setSearchQuery] = useState('')
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'listings'>('all')
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory[]>([])
-  const { route, navigate } = useRouter()
+  const { route: rawRoute, navigate } = useRouter()
+  const route = rawRoute.view === 'landing' ? { view: 'home' as const } : rawRoute
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
 
   function visitProfile(walletAddress: string) {
@@ -416,6 +418,10 @@ function AppRoot() {
 
   if (route.view === 'admin') {
     return <AdminShell onExit={() => navigate(homePath())} />
+  }
+
+  if (route.view === 'landing') {
+    return <LandingPage onLaunch={() => navigate(homePath())} />
   }
 
   return <AppShell />
