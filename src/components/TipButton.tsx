@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useWallet } from '../contexts/WalletContext'
+import { useClickOutside } from '../hooks/useClickOutside'
 import { CoinIcon } from './icons'
 
 export function TipButton({
@@ -20,6 +21,9 @@ export function TipButton({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hint, setHint] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(containerRef, () => setOpen(false), open)
 
   const isOwnPost = walletAddress === toWallet
   const disabled = !walletAddress || isOwnPost
@@ -77,7 +81,7 @@ export function TipButton({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         className={`flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] font-medium transition-colors ${
           disabled
@@ -105,7 +109,7 @@ export function TipButton({
           onClick={(e) => e.stopPropagation()}
         >
           <span className="text-[13px] font-semibold text-ink">Send tip</span>
-          <div className="mt-2 flex items-center gap-2 rounded-xl border border-surface-border bg-base px-3 py-2 focus-within:border-gold/60 focus-within:shadow-[0_0_0_1px_rgba(217,119,6,0.4)]">
+          <div className="mt-2 flex items-center gap-2 rounded-xl border border-surface-border bg-base px-3 py-2 focus-within:border-gold/60 focus-within:shadow-[0_0_0_1px_rgba(193,127,58,0.4)]">
             <input
               type="number"
               min="0"
@@ -126,7 +130,7 @@ export function TipButton({
               Cancel
             </button>
             <button
-              className="rounded-full bg-gradient-to-r from-gold to-amber-400 px-3.5 py-1.5 text-[13px] font-semibold text-base transition-transform duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+              className="rounded-full bg-gradient-to-r from-gold to-gold-light px-3.5 py-1.5 text-[13px] font-semibold text-base transition-transform duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-60"
               onClick={handleConfirm}
               disabled={sending}
             >

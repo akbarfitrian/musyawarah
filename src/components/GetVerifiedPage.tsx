@@ -24,7 +24,7 @@ const CARD_ACCENT: Record<Exclude<VerificationTier, 'none'>, string> = {
 
 const BUY_BUTTON_ACCENT: Record<Exclude<VerificationTier, 'none'>, string> = {
   verified: 'bg-brand-gradient text-accent-contrast shadow-glow',
-  verified_pro: 'bg-gradient-to-r from-gold to-amber-400 text-white shadow-[0_0_0_1px_rgba(217,119,6,0.35)]',
+  verified_pro: 'bg-gradient-to-r from-gold to-gold-light text-white shadow-[0_0_0_1px_rgba(193,127,58,0.35)]',
   verified_max: 'bg-gradient-to-r from-indigo-500 to-indigo-700 text-white shadow-[0_0_0_1px_rgba(79,70,229,0.4)]',
 }
 

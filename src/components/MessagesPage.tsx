@@ -453,7 +453,7 @@ function ListingSelector({
         className="min-w-0 flex-1 rounded-lg border border-surface-border bg-base px-2 py-1.5 text-[12px] text-ink outline-none focus:border-gold/60"
       >
         {listings.map((l) => (
-          <option key={l.id} value={l.id}>
+          <option key={l.id} value={l.id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
             {l.listing_title} — {l.listing_price_amount} {l.listing_coin_symbol ?? 'UCT'}
           </option>
         ))}
@@ -502,7 +502,7 @@ function OfferForm({
         <span className="shrink-0 text-[13px] font-medium text-ink-muted">{coinSymbol}</span>
         <button
           type="button"
-          className="shrink-0 rounded-full bg-gradient-to-r from-gold to-amber-400 px-4 py-2 text-[13px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
+          className="shrink-0 rounded-full bg-gradient-to-r from-gold to-gold-light px-4 py-2 text-[13px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
           disabled={!valid || sending}
           onClick={() => valid && onSend(parsed, coinSymbol)}
         >
@@ -1025,7 +1025,7 @@ function ThreadView({
         {offerCandidates.length > 0 && !showOfferForm && (
           <button
             type="button"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-amber-400 px-3.5 text-[13px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-gold-light px-3.5 text-[13px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95"
             onClick={openOfferForm}
             title={
               offerCandidates.length > 1

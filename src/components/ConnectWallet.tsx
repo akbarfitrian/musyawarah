@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useWallet } from '../contexts/WalletContext'
 import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
+import { useClickOutside } from '../hooks/useClickOutside'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { ChevronDownIcon, LogoutIcon, RefreshIcon } from './icons'
 import { VerifiedBadge } from './VerifiedBadge'
@@ -55,6 +56,7 @@ export function ConnectWallet() {
   const { tier: verificationTier } = useVerification()
   const [menuOpen, setMenuOpen] = useState(false)
   const [assetsOpen, setAssetsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const totalUsd = computeTotalUsd(totalFiat, assets)
 
@@ -62,6 +64,8 @@ export function ConnectWallet() {
     setMenuOpen(false)
     setAssetsOpen(false)
   }
+
+  useClickOutside(containerRef, closeMenu, menuOpen)
 
   if (isAutoConnecting) {
     return (
@@ -87,7 +91,7 @@ export function ConnectWallet() {
   }
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full" ref={containerRef}>
       <button
         className="flex w-full items-center gap-2.5 rounded-full border border-transparent px-2 py-1.5 text-left transition-colors hover:border-surface-border hover:bg-surface lg:gap-3 lg:px-3 lg:py-2"
         onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}

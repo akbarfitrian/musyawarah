@@ -218,7 +218,7 @@ export function PostComposer({
                 className="min-w-0 flex-1 rounded-lg border border-surface-border bg-base px-2 py-2 text-[13px] text-ink outline-none focus:border-gold/60"
               >
                 {LISTING_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
                     {c}
                   </option>
                 ))}
@@ -229,8 +229,12 @@ export function PostComposer({
                 onChange={(e) => setListingPriceMode(e.target.value as ListingPriceMode)}
                 className="rounded-lg border border-surface-border bg-base px-2 py-2 text-[13px] text-ink outline-none focus:border-gold/60"
               >
-                <option value="task">Per task</option>
-                <option value="subscription">Per month</option>
+                <option value="task" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
+                  Per task
+                </option>
+                <option value="subscription" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
+                  Per month
+                </option>
               </select>
 
               <div className="flex min-w-0 flex-1 items-center gap-1 rounded-lg border border-surface-border bg-base px-2 py-2">

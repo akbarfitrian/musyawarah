@@ -94,7 +94,7 @@ function BrowseTab({
           onChange={(e) => setSort(e.target.value as ListingSort)}
         >
           {(Object.keys(SORT_LABEL) as ListingSort[]).map((key) => (
-            <option key={key} value={key}>
+            <option key={key} value={key} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
               {SORT_LABEL[key]}
             </option>
           ))}

@@ -1,11 +1,11 @@
 import type { VerificationTier } from '../lib/verification'
-import { TIER_CONFIG } from '../lib/verification'
+import { TIER_CONFIG, TIER_ACCENT } from '../lib/verification'
 import { VerifiedCheckIcon } from './icons'
 
 const CHECK_COLOR: Record<'verified' | 'verified_pro' | 'verified_max', string> = {
-  verified: '#2563EB',
-  verified_pro: '#D97706',
-  verified_max: '#4F46E5',
+  verified: TIER_ACCENT.verified.base,
+  verified_pro: TIER_ACCENT.verified_pro.base,
+  verified_max: TIER_ACCENT.verified_max.base,
 }
 
 export function VerifiedBadge({

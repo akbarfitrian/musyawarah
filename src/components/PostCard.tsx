@@ -9,12 +9,12 @@ import { linkify } from '../utils/linkify'
 import { useWallet } from '../contexts/WalletContext'
 import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
-import { canEditPost, maxPostChars } from '../lib/verification'
+import { canEditPost, maxPostChars, tierAccent, withAlpha } from '../lib/verification'
 import { supabase } from '../supabaseClient'
 import { setListingActive } from '../hooks/usePosts'
 import { postPath } from '../utils/routes'
 import { CopyLinkButton } from './CopyLinkButton'
-import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, TagIcon, MessageIcon, CheckIcon } from './icons'
+import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
 
 export function PostCard({
   post,
@@ -43,6 +43,7 @@ export function PostCard({
   const isOwnPost = walletAddress === post.author_wallet
   const listingHasOrders = post.is_listing && (post.order_count ?? 0) > 0
   const avatarUrl = resolveAuthorAvatar(post.author_wallet, post.author_avatar_url, walletAddress, myProfile?.avatar_url)
+  const accent = tierAccent(post.author_verification_tier)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -239,28 +240,47 @@ export function PostCard({
           </div>
 
           {post.is_listing && !isEditing && (
-            <div className="mt-1 rounded-xl border border-gold/25 bg-gold/5 px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
-                  <BriefcaseIcon size={14} />
-                  {post.listing_title}
-                </span>
-                <span className="font-mono text-[13px] font-semibold tabular-nums text-gold">
-                  {post.listing_price_amount} {post.listing_coin_symbol ?? 'UCT'}
-                  <span className="font-sans font-normal text-ink-faint">
-                    {' '}
-                    / {post.listing_price_mode === 'subscription' ? 'month' : 'task'}
+            <div
+              className="mt-2 overflow-hidden rounded-2xl border"
+              style={{ borderColor: withAlpha(accent.base, 0.25), backgroundColor: withAlpha(accent.base, 0.05) }}
+            >
+              <div className="flex items-start justify-between gap-3 px-3.5 pt-3">
+                <div className="min-w-0">
+                  <span
+                    className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: withAlpha(accent.base, 0.8) }}
+                  >
+                    <BriefcaseIcon size={12} />
+                    Listing
+                    {post.listing_category && (
+                      <>
+                        <span style={{ color: withAlpha(accent.base, 0.3) }}>·</span>
+                        <span className="normal-case tracking-normal text-ink-faint">{post.listing_category}</span>
+                      </>
+                    )}
                   </span>
-                </span>
+                  <h3 className="mt-1 truncate text-[15px] font-bold leading-snug text-ink">
+                    {post.listing_title}
+                  </h3>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div
+                    className="font-mono text-[17px] font-bold leading-tight tabular-nums"
+                    style={{ color: accent.base }}
+                  >
+                    {post.listing_price_amount} {post.listing_coin_symbol ?? 'UCT'}
+                  </div>
+                  <div className="text-[11px] font-medium text-ink-faint">
+                    / {post.listing_price_mode === 'subscription' ? 'month' : 'task'}
+                  </div>
+                </div>
               </div>
-              {(post.listing_category || !post.listing_active || (post.completed_order_count ?? 0) > 0) && (
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {post.listing_category && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-muted">
-                      <TagIcon size={11} />
-                      {post.listing_category}
-                    </span>
-                  )}
+
+              {(!post.listing_active || (post.completed_order_count ?? 0) > 0) && (
+                <div
+                  className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t px-3.5 py-2"
+                  style={{ borderColor: withAlpha(accent.base, 0.1) }}
+                >
                   {!post.listing_active && (
                     <span className="inline-flex items-center rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-faint">
                       Inactive
@@ -318,7 +338,11 @@ export function PostCard({
             </div>
           ) : (
             post.content && (
-              <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-normal text-ink">
+              <p
+                className={`whitespace-pre-wrap break-words text-[15px] leading-normal text-ink ${
+                  post.is_listing ? 'mt-2' : 'mt-0.5'
+                }`}
+              >
                 {linkify(post.content)}
               </p>
             )
@@ -360,32 +384,31 @@ export function PostCard({
             </div>
           )}
 
-          <div
-            className={`mt-2.5 flex items-center gap-6 ${
-              post.is_listing ? 'max-w-md' : 'max-w-xs'
-            }`}
-          >
-            <RepostButton
-              postId={post.id}
-              postAuthorWallet={post.author_wallet}
-              isOwnPost={isOwnPost}
-              repostTotal={post.repost_total ?? 0}
-              repostedByMe={post.reposted_by_me ?? false}
-              onReposted={onTipped}
-            />
-            <TipButton
-              postId={post.id}
-              toWallet={post.author_wallet}
-              tipTotal={post.tip_total ?? 0}
-              onTipped={onTipped}
-            />
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <RepostButton
+                postId={post.id}
+                postAuthorWallet={post.author_wallet}
+                isOwnPost={isOwnPost}
+                repostTotal={post.repost_total ?? 0}
+                repostedByMe={post.reposted_by_me ?? false}
+                onReposted={onTipped}
+              />
+              <TipButton
+                postId={post.id}
+                toWallet={post.author_wallet}
+                tipTotal={post.tip_total ?? 0}
+                onTipped={onTipped}
+              />
+            </div>
             {post.is_listing && !isOwnPost && post.listing_active && onMessageProvider && (
               <button
                 type="button"
-                className="ml-auto flex items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-amber-400 px-3 py-1.5 text-[13px] font-semibold text-base transition-transform duration-150 hover:scale-[1.03] active:scale-95"
+                className="flex h-7 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-base shadow-sm transition-transform duration-150 hover:scale-[1.03] active:scale-95"
+                style={{ backgroundImage: `linear-gradient(to right, ${accent.base}, ${accent.light})` }}
                 onClick={() => onMessageProvider(post.author_wallet, post.id)}
               >
-                <MessageIcon size={14} />
+                <MessageIcon size={12} />
                 Negotiate & Hire
               </button>
             )}

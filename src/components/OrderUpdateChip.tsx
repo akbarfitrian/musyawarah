@@ -169,7 +169,7 @@ export function OrderUpdateChip({
       {canLockEscrow && (
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-amber-400 px-3.5 py-1.5 text-[12px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-gold to-gold-light px-3.5 py-1.5 text-[12px] font-semibold text-base transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-50"
           onClick={() => onLockEscrow(order!)}
           disabled={isLocking}
         >

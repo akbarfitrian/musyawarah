@@ -109,3 +109,32 @@ export function startOfUtcDayIso(): string {
   const now = new Date()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
 }
+
+export interface TierAccent {
+  base: string
+  light: string
+}
+
+/**
+ * Warna aksen per tingkat verified — dipakai untuk centang verified DAN untuk
+ * elemen listing/harga milik user tersebut (kotak listing, tombol Negotiate & Hire, dst),
+ * supaya warnanya ikut mengikuti status verified yang dibeli user.
+ */
+export const TIER_ACCENT: Record<VerificationTier, TierAccent> = {
+  none: { base: '#6B7280', light: '#9CA3AF' }, // abu-abu/hitam-putih — user belum verified / basic
+  verified: { base: '#2563EB', light: '#60A5FA' }, // biru
+  verified_pro: { base: '#C17F3A', light: '#E3A75E' }, // gold/copper
+  verified_max: { base: '#4F46E5', light: '#818CF8' }, // indigo
+}
+
+export function tierAccent(tier: VerificationTier | null | undefined): TierAccent {
+  return TIER_ACCENT[tier ?? 'none']
+}
+
+export function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '')
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
