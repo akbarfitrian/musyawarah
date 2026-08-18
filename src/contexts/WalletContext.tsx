@@ -15,10 +15,14 @@ import {
   formatRecipient,
   getDappDescriptor,
   identityToHandle,
+  isInIframe,
   isValidHexCoinId,
+  openWalletPopup,
   parseFiatTotal,
   parseWalletAssets,
   toBaseUnits,
+  waitForPopupReady,
+  WALLET_URL,
   type SphereConnectionMode,
   type SphereIdentity,
   type WalletAsset,
@@ -175,6 +179,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const transportRef = useRef<{ destroy?: () => void } | null>(null)
   const uctCoinRef = useRef<ResolvedCoin | null>(null)
   const unsubEventsRef = useRef<(() => void) | null>(null)
+  // Only set when connected via the standalone popup (window.open), not the
+  // iframe mode — this is the actual popup window we keep alive across the
+  // session so later intents (send, dll) can post into it.
+  const popupRef = useRef<Window | null>(null)
 
   const resetLocalState = useCallback(() => {
     unsubEventsRef.current?.()
@@ -183,6 +191,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     transportRef.current = null
     clientRef.current = null
     uctCoinRef.current = null
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close()
+    }
+    popupRef.current = null
     setWalletAddress(null)
     setConnectionMode(null)
     setIsWalletLocked(false)
@@ -275,14 +287,60 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const dapp = getDappDescriptor()
 
     try {
-      const transport = PostMessageTransport.forClient()
-      const client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 })
-      const result = await client.connect()
+      let result: Awaited<ReturnType<ConnectClient['connect']>>
+      let client: ConnectClient
+      let transport: PostMessageTransport
+      let mode: SphereConnectionMode
+      let popup: Window | null = null
+
+      if (isInIframe()) {
+        // Embedded inside the Sphere wallet's own iframe — talk to window.parent.
+        transport = PostMessageTransport.forClient()
+        client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 })
+        mode = 'iframe'
+        result = await client.connect()
+      } else {
+        // Standalone tab: open a REAL browser popup window to the Sphere
+        // wallet and talk to it via postMessage — not the wallet's browser
+        // extension, that's a separate (unimplemented) transport.
+        popup = openWalletPopup()
+        if (!popup) {
+          throw new Error(
+            'Pop-up wallet diblokir browser. Izinkan pop-up untuk situs ini, lalu coba Connect Wallet lagi.'
+          )
+        }
+
+        await waitForPopupReady(popup)
+
+        transport = PostMessageTransport.forClient({ target: popup, targetOrigin: WALLET_URL })
+        client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 })
+        mode = 'popup'
+
+        // If the popup is closed before the handshake resolves, fail fast
+        // instead of waiting out the full connect timeout. Once we ARE
+        // connected, the same callback tears the session down cleanly if
+        // the user closes the popup later (it's the transport's only link
+        // to the wallet — dead the moment that window is gone).
+        let handshakeSettled = false
+        const popupClosedEarly = new Promise<never>((_, reject) => {
+          transport.onClose(() => {
+            if (handshakeSettled) {
+              if (clientRef.current === client) resetLocalState()
+            } else {
+              reject(new Error('Wallet popup ditutup sebelum proses connect selesai.'))
+            }
+          })
+        })
+
+        result = await Promise.race([client.connect(), popupClosedEarly])
+        handshakeSettled = true
+      }
 
       clientRef.current = client
       transportRef.current = transport
+      popupRef.current = popup
       uctCoinRef.current = null
-      setConnectionMode('iframe')
+      setConnectionMode(mode)
       const handle = identityToHandle(result.identity as SphereIdentity)
       setWalletAddress(handle)
       setIsWalletLocked(false)
@@ -298,7 +356,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setConnecting(false)
     }
-  }, [attachEvents, refreshBalance])
+  }, [attachEvents, refreshBalance, resetLocalState])
 
   const disconnect = useCallback(async () => {
     try {
@@ -348,6 +406,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     const { coinId, decimals } = uctCoinRef.current
     const amountBase = toBaseUnits(amount, decimals)
+
+    // In popup mode the approval UI lives in that other window — bring it
+    // to the front so the user actually notices there's something to sign.
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.focus()
+    }
 
     const result = (await client.intent('send', {
       to: formatRecipient(toWallet),

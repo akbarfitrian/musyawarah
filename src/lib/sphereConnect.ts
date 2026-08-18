@@ -1,10 +1,20 @@
-
 export type SphereConnectionMode = 'iframe' | 'extension' | 'popup'
 
 export const WALLET_URL =
   (import.meta.env.VITE_SPHERE_WALLET_URL as string | undefined) || 'https://sphere.unicity.network'
 
 export const POPUP_WINDOW_NAME = 'sphere-connect-popup'
+
+export const POPUP_WINDOW_FEATURES = 'width=420,height=720,scrollbars=yes,resizable=yes'
+
+// Must match the wallet-side broadcast in the Sphere Connect protocol
+// (`sphere-connect:host-ready`) — the popup posts this once its ConnectHost
+// transport is actually listening, so we know it's safe to send the
+// handshake instead of racing a postMessage into a page that hasn't
+// finished loading yet.
+const HOST_READY_TYPE = 'sphere-connect:host-ready'
+const HOST_READY_TIMEOUT_MS = 30000
+const POPUP_CLOSE_POLL_MS = 500
 
 export function getDappDescriptor() {
   return {
@@ -26,6 +36,62 @@ export function isInIframe(): boolean {
 export function hasExtension(): boolean {
   if (typeof window === 'undefined') return false
   return Boolean((window as unknown as { sphere?: unknown }).sphere)
+}
+
+/**
+ * URL for the wallet's standalone connect popup — the ACTUAL browser
+ * popup window (window.open), not the Sphere browser extension.
+ */
+export function buildPopupConnectUrl(): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${WALLET_URL}/connect?origin=${encodeURIComponent(origin)}`
+}
+
+/**
+ * Opens the Sphere wallet connect popup. Returns null if the browser
+ * blocked it (pop-up blocker) so the caller can show a clear message
+ * instead of silently hanging.
+ */
+export function openWalletPopup(): Window | null {
+  if (typeof window === 'undefined') return null
+  return window.open(buildPopupConnectUrl(), POPUP_WINDOW_NAME, POPUP_WINDOW_FEATURES)
+}
+
+/**
+ * Waits for the popup's ConnectHost to signal it's ready to receive the
+ * handshake. Rejects early if the popup is closed before that happens,
+ * instead of leaving the caller hanging until the connect timeout.
+ */
+export function waitForPopupReady(popup: Window): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('Wallet popup tidak merespons. Coba Connect Wallet lagi.'))
+    }, HOST_READY_TIMEOUT_MS)
+
+    const closeCheck = setInterval(() => {
+      if (popup.closed) {
+        cleanup()
+        reject(new Error('Wallet popup ditutup sebelum siap connect.'))
+      }
+    }, POPUP_CLOSE_POLL_MS)
+
+    function listener(event: MessageEvent) {
+      const data = event.data as { type?: unknown } | null
+      if (data && data.type === HOST_READY_TYPE) {
+        cleanup()
+        resolve()
+      }
+    }
+
+    function cleanup() {
+      clearTimeout(timer)
+      clearInterval(closeCheck)
+      window.removeEventListener('message', listener)
+    }
+
+    window.addEventListener('message', listener)
+  })
 }
 
 export interface SphereIdentity {
