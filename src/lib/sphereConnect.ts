@@ -66,13 +66,13 @@ export function waitForPopupReady(popup: Window): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup()
-      reject(new Error('Wallet popup tidak merespons. Coba Connect Wallet lagi.'))
+      reject(new Error('Wallet popup did not respond. Try Connect Wallet again.'))
     }, HOST_READY_TIMEOUT_MS)
 
     const closeCheck = setInterval(() => {
       if (popup.closed) {
         cleanup()
-        reject(new Error('Wallet popup ditutup sebelum siap connect.'))
+        reject(new Error('Wallet popup was closed before it was ready to connect.'))
       }
     }, POPUP_CLOSE_POLL_MS)
 

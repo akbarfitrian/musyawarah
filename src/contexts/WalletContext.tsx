@@ -247,6 +247,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     async function silentConnect() {
+      // Silent auto-connect only makes sense inside the Sphere wallet's own
+      // iframe — outside of it, window.parent === window and nothing will
+      // ever answer, so this would just sit "Checking wallet…" for up to
+      // the full 30s connect timeout for no reason. Popup mode can't be
+      // silently auto-connected anyway (browsers block window.open()
+      // without a user gesture), so standalone visits skip straight to
+      // showing the interactive Connect Wallet button.
+      if (!isInIframe()) {
+        setIsAutoConnecting(false)
+        return
+      }
+
       const dapp = getDappDescriptor()
 
       try {
@@ -306,7 +318,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         popup = openWalletPopup()
         if (!popup) {
           throw new Error(
-            'Pop-up wallet diblokir browser. Izinkan pop-up untuk situs ini, lalu coba Connect Wallet lagi.'
+            'Wallet popup was blocked by the browser. Allow pop-ups for this site, then try Connect Wallet again.'
           )
         }
 
@@ -327,7 +339,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             if (handshakeSettled) {
               if (clientRef.current === client) resetLocalState()
             } else {
-              reject(new Error('Wallet popup ditutup sebelum proses connect selesai.'))
+              reject(new Error('Wallet popup was closed before the connection finished.'))
             }
           })
         })
