@@ -8,7 +8,7 @@ export type Route =
   | { view: 'settings' }
   | { view: 'profile'; wallet?: string }
   | { view: 'post'; postId: string }
-  | { view: 'marketplace'; tab?: 'listings' | 'orders' }
+  | { view: 'marketplace'; tab?: 'browse' | 'listings' | 'orders' }
   | { view: 'admin' }
 
 export function homePath() {
@@ -26,7 +26,7 @@ export function verifyPath() {
 export function questsPath() {
   return '/quests'
 }
-export function marketplacePath(tab?: 'listings' | 'orders') {
+export function marketplacePath(tab?: 'browse' | 'listings' | 'orders') {
   return tab ? `/marketplace/${tab}` : '/marketplace'
 }
 export function settingsPath() {
@@ -67,7 +67,10 @@ export function parsePath(pathname: string): Route {
     case 'quests':
       return { view: 'quests' }
     case 'marketplace':
-      return { view: 'marketplace', tab: seg2 === 'orders' ? 'orders' : seg2 === 'listings' ? 'listings' : undefined }
+      return {
+        view: 'marketplace',
+        tab: seg2 === 'orders' ? 'orders' : seg2 === 'listings' ? 'listings' : seg2 === 'browse' ? 'browse' : undefined,
+      }
     case 'settings':
       return { view: 'settings' }
     case 'admin':

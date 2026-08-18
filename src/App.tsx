@@ -270,10 +270,12 @@ function AppShell() {
         ) : route.view === 'marketplace' ? (
           <div className="px-4 pt-4">
             <MarketplacePage
-              tab={route.tab ?? 'listings'}
+              tab={route.tab ?? 'browse'}
               onChangeTab={(tab) => navigate(marketplacePath(tab))}
               onOpenThread={(wallet) => navigate(messagesPath(wallet))}
               onVisitPost={visitPost}
+              onVisitProfile={visitProfile}
+              onMessageProvider={messageWallet}
             />
           </div>
         ) : route.view === 'post' ? (

@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { useWallet } from '../contexts/WalletContext'
 import { usePosts, setListingActive } from '../hooks/usePosts'
+import { useListings, type ListingSort } from '../hooks/useListings'
 import { useMyOrders } from '../hooks/useOrders'
+import { Feed } from './Feed'
+import { LISTING_CATEGORIES, type ListingCategory } from '../config/listingCategories'
 import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { BriefcaseIcon, MessageIcon, TagIcon } from './icons'
 import type { Order, OrderStatus } from '../types'
+
+const SORT_LABEL: Record<ListingSort, string> = {
+  newest: 'Newest',
+  price_asc: 'Price: low to high',
+  price_desc: 'Price: high to low',
+}
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'Pending',
@@ -28,6 +37,101 @@ const STATUS_ORDER: OrderStatus[] = [
   'refunded',
   'cancelled',
 ]
+
+function BrowseTab({
+  onVisitProfile,
+  onVisitPost,
+  onMessageProvider,
+}: {
+  onVisitProfile?: (walletAddress: string) => void
+  onVisitPost?: (postId: string) => void
+  onMessageProvider?: (walletAddress: string, postId?: string) => void
+}) {
+  const [categories, setCategories] = useState<ListingCategory[]>([])
+  const [sort, setSort] = useState<ListingSort>('newest')
+  const { posts, loading, error, hasMore, loadingMore, loadMore, refresh } = useListings({ categories, sort })
+
+  return (
+    <div>
+      <div className="mx-4 mb-3 mt-3 flex items-center justify-between gap-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors ${
+              categories.length === 0
+                ? 'border-gold bg-gold/10 text-ink'
+                : 'border-surface-border text-ink-muted hover:text-ink'
+            }`}
+            onClick={() => setCategories([])}
+          >
+            All categories
+          </button>
+          {LISTING_CATEGORIES.map((category) => {
+            const active = categories.includes(category)
+            return (
+              <button
+                key={category}
+                type="button"
+                aria-pressed={active}
+                className={`shrink-0 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors ${
+                  active ? 'border-gold bg-gold/10 text-ink' : 'border-surface-border text-ink-muted hover:text-ink'
+                }`}
+                onClick={() =>
+                  setCategories((prev) => (prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]))
+                }
+              >
+                {category}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="mx-4 mb-2 flex items-center justify-end">
+        <select
+          className="rounded-full border border-surface-border bg-transparent px-3 py-1 text-[12px] font-semibold text-ink-muted focus:text-ink focus:outline-none"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as ListingSort)}
+        >
+          {(Object.keys(SORT_LABEL) as ListingSort[]).map((key) => (
+            <option key={key} value={key}>
+              {SORT_LABEL[key]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <Feed
+        posts={posts}
+        loading={loading}
+        error={error}
+        onTipped={refresh}
+        onDeleted={refresh}
+        onVisitProfile={onVisitProfile}
+        onVisitPost={onVisitPost}
+        onMessageProvider={onMessageProvider}
+        emptyMessage={
+          categories.length > 0
+            ? `No active listings in ${categories.map((c) => `"${c}"`).join(', ')}. Try another category.`
+            : 'No active listings yet.'
+        }
+      />
+
+      {!loading && hasMore && (
+        <div className="flex justify-center py-4">
+          <button
+            type="button"
+            className="rounded-full border border-surface-border px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:bg-surface-hover disabled:opacity-50"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ListingsTab({
   myWallet,
@@ -197,60 +301,93 @@ export function MarketplacePage({
   onChangeTab,
   onOpenThread,
   onVisitPost,
+  onVisitProfile,
+  onMessageProvider,
 }: {
-  tab: 'listings' | 'orders'
-  onChangeTab: (tab: 'listings' | 'orders') => void
+  tab: 'browse' | 'listings' | 'orders'
+  onChangeTab: (tab: 'browse' | 'listings' | 'orders') => void
   onOpenThread?: (wallet: string) => void
   onVisitPost?: (postId: string) => void
+  onVisitProfile?: (walletAddress: string) => void
+  onMessageProvider?: (walletAddress: string, postId?: string) => void
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()
 
+  const tabs = (
+    <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
+      <button
+        type="button"
+        className={`flex items-center gap-1.5 px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+          tab === 'browse' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
+        }`}
+        onClick={() => onChangeTab('browse')}
+      >
+        <BriefcaseIcon size={14} />
+        All Listings
+      </button>
+      <button
+        type="button"
+        className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+          tab === 'listings' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
+        }`}
+        onClick={() => onChangeTab('listings')}
+      >
+        My Listings
+      </button>
+      <button
+        type="button"
+        className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+          tab === 'orders' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
+        }`}
+        onClick={() => onChangeTab('orders')}
+      >
+        My Orders
+      </button>
+    </div>
+  )
+
+  // Browse is public — no wallet needed to look at listings, only to message/order.
+  if (tab === 'browse') {
+    return (
+      <div className="-mx-4">
+        {tabs}
+        <BrowseTab onVisitProfile={onVisitProfile} onVisitPost={onVisitPost} onMessageProvider={onMessageProvider} />
+      </div>
+    )
+  }
+
   if (isAutoConnecting) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <p className="text-sm text-ink-muted">Checking wallet…</p>
+      <div className="-mx-4">
+        {tabs}
+        <div className="flex items-center justify-center py-16">
+          <p className="text-sm text-ink-muted">Checking wallet…</p>
+        </div>
       </div>
     )
   }
 
   if (!myWallet) {
     return (
-      <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <p className="text-sm text-ink-muted">Connect your wallet to see your listings & orders.</p>
-        <button
-          className="rounded-full bg-brand-gradient px-6 py-2.5 text-[15px] font-semibold text-accent-contrast shadow-glow transition-transform duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-60"
-          onClick={connect}
-          disabled={connecting}
-        >
-          {connecting ? 'Connecting…' : 'Connect Wallet'}
-        </button>
+      <div className="-mx-4">
+        {tabs}
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <p className="text-sm text-ink-muted">Connect your wallet to see your listings & orders.</p>
+          <button
+            className="rounded-full bg-brand-gradient px-6 py-2.5 text-[15px] font-semibold text-accent-contrast shadow-glow transition-transform duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+            onClick={connect}
+            disabled={connecting}
+          >
+            {connecting ? 'Connecting…' : 'Connect Wallet'}
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="-mx-4">
-      <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
-        <button
-          type="button"
-          className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
-            tab === 'listings' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
-          }`}
-          onClick={() => onChangeTab('listings')}
-        >
-          My Listings
-        </button>
-        <button
-          type="button"
-          className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
-            tab === 'orders' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
-          }`}
-          onClick={() => onChangeTab('orders')}
-        >
-          My Orders
-        </button>
-      </div>
-
+      {tabs}
       {tab === 'listings' ? (
         <ListingsTab myWallet={myWallet} onVisitPost={onVisitPost} />
       ) : (
