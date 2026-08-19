@@ -40,7 +40,7 @@ import { HelpPage } from './components/HelpPage'
 import { DocsPage } from './components/DocsPage'
 import { AdminShell } from './components/admin/AdminShell'
 import { useProfile } from './contexts/ProfileContext'
-import { BellIcon, BriefcaseIcon, FeatherIcon, HomeIcon, LogoMark, MessageIcon, TrophyIcon } from './components/icons'
+import { BellIcon, BriefcaseIcon, FeatherIcon, HomeIcon, LogoMark, MenuIcon, MessageIcon, TrophyIcon } from './components/icons'
 import { focusComposer } from './utils/composer'
 import { shortenAddress, avatarColor, avatarInitial } from './utils/avatar'
 import './index.css'
@@ -145,7 +145,9 @@ function AppShell() {
         <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">
           <button
             type="button"
-            className="flex h-8 w-8 shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-full text-[12px] font-semibold text-white"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-full text-[12px] font-semibold text-white ${
+              walletAddress ? '' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+            }`}
             style={walletAddress ? { background: avatarColor(walletAddress) } : undefined}
             onClick={() => setNavDrawerOpen(true)}
             aria-label="Buka menu"
@@ -157,9 +159,7 @@ function AppShell() {
                 avatarInitial(profile?.username || walletAddress)
               )
             ) : (
-              <span className="flex h-full w-full items-center justify-center bg-white dark:bg-black">
-                <LogoMark size={20} />
-              </span>
+              <MenuIcon size={20} />
             )}
           </button>
           <span className="flex h-8 w-8 items-center justify-center justify-self-center">
@@ -391,6 +391,8 @@ function AppShell() {
         view={sidebarView}
         onNavigate={handleSidebarNavigate}
         isTreasury={isTreasury}
+        unreadMessages={totalUnread}
+        unreadNotifications={unreadNotifications}
       />
 
       <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-surface-border bg-surface/90 backdrop-blur-xl md:hidden">
