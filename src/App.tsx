@@ -142,6 +142,43 @@ function AppShell() {
       />
 
       <main className="min-h-screen border-surface-border pb-20 md:border-x md:pb-0">
+        <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">
+          <button
+            type="button"
+            className="flex h-8 w-8 shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-full text-[12px] font-semibold text-white"
+            style={walletAddress ? { background: avatarColor(walletAddress) } : undefined}
+            onClick={() => setNavDrawerOpen(true)}
+            aria-label="Buka menu"
+          >
+            {walletAddress ? (
+              profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                avatarInitial(profile?.username || walletAddress)
+              )
+            ) : (
+              <span className="flex h-full w-full items-center justify-center bg-white dark:bg-black">
+                <LogoMark size={20} />
+              </span>
+            )}
+          </button>
+          <span className="flex h-8 w-8 items-center justify-center justify-self-center">
+            <LogoMark size={22} />
+          </span>
+          <div className="flex items-center justify-self-end gap-2">
+            <button
+              type="button"
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                rightPanelOpen ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+              }`}
+              onClick={() => setRightPanelOpen(true)}
+              aria-label="Buka leaderboard"
+            >
+              <TrophyIcon size={19} filled={rightPanelOpen} />
+            </button>
+          </div>
+        </div>
+
         <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-surface-border bg-base/80 px-4 py-3 backdrop-blur-xl md:flex">
           <h1 className="m-0 font-display text-[19px] font-bold tracking-tight text-ink">{headerTitle}</h1>
           <button
@@ -347,40 +384,6 @@ function AppShell() {
         mobileOpen={rightPanelOpen}
         onMobileClose={() => setRightPanelOpen(false)}
       />
-
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">
-        <button
-          type="button"
-          className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[12px] font-semibold text-white"
-          style={walletAddress ? { background: avatarColor(walletAddress) } : undefined}
-          onClick={() => setNavDrawerOpen(true)}
-          aria-label="Buka menu"
-        >
-          {walletAddress ? (
-            profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-            ) : (
-              avatarInitial(profile?.username || walletAddress)
-            )
-          ) : (
-            <span className="flex h-full w-full items-center justify-center bg-white dark:bg-black">
-              <LogoMark size={20} />
-            </span>
-          )}
-        </button>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              rightPanelOpen ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
-            }`}
-            onClick={() => setRightPanelOpen(true)}
-            aria-label="Buka leaderboard"
-          >
-            <TrophyIcon size={19} filled={rightPanelOpen} />
-          </button>
-        </div>
-      </div>
 
       <MobileNavDrawer
         open={navDrawerOpen}
