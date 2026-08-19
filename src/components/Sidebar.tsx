@@ -19,8 +19,11 @@ export function Sidebar({
 }) {
   return (
     <aside className="sticky top-0 hidden h-screen flex-col items-start gap-1 border-r border-surface-border px-3 py-4 md:flex">
-      <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-black">
-        <LogoMark size={26} />
+      <div className="mb-2 flex items-center gap-2.5 px-1">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white dark:bg-black">
+          <LogoMark size={26} />
+        </div>
+        <span className="font-display text-[20px] font-semibold text-ink">Musyawarah</span>
       </div>
 
       <nav className="flex w-full flex-1 flex-col gap-1">

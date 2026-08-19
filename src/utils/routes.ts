@@ -7,6 +7,8 @@ export type Route =
   | { view: 'verify' }
   | { view: 'quests' }
   | { view: 'settings' }
+  | { view: 'help' }
+  | { view: 'docs' }
   | { view: 'profile'; wallet?: string }
   | { view: 'post'; postId: string }
   | { view: 'marketplace'; tab?: 'browse' | 'listings' | 'orders' }
@@ -35,6 +37,12 @@ export function marketplacePath(tab?: 'browse' | 'listings' | 'orders') {
 }
 export function settingsPath() {
   return '/settings'
+}
+export function helpPath() {
+  return '/help'
+}
+export function docsPath() {
+  return '/docs'
 }
 export function adminPath() {
   return '/admin'
@@ -78,6 +86,10 @@ export function parsePath(pathname: string): Route {
       }
     case 'settings':
       return { view: 'settings' }
+    case 'help':
+      return { view: 'help' }
+    case 'docs':
+      return { view: 'docs' }
     case 'admin':
       return { view: 'admin' }
     case 'profile':

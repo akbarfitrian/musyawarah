@@ -1,7 +1,15 @@
 import { useTheme } from '../contexts/ThemeContext'
-import { ChevronLeftIcon, MoonIcon, SunIcon } from './icons'
+import { ChevronLeftIcon, ChevronRightIcon, DocsIcon, HelpIcon, MoonIcon, SunIcon } from './icons'
 
-export function SettingsPage({ onBack }: { onBack?: () => void }) {
+export function SettingsPage({
+  onBack,
+  onOpenHelp,
+  onOpenDocs,
+}: {
+  onBack?: () => void
+  onOpenHelp?: () => void
+  onOpenDocs?: () => void
+}) {
   const { theme, toggleTheme } = useTheme()
   const isDark = theme === 'dark'
 
@@ -69,6 +77,42 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
                 }`}
               />
             </span>
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-col gap-2">
+          <button
+            type="button"
+            className="flex items-center justify-between gap-4 rounded-xl border border-surface-border bg-base px-4 py-3.5 text-left transition-colors hover:bg-surface-hover"
+            onClick={onOpenHelp}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold">
+                <HelpIcon size={18} />
+              </span>
+              <div>
+                <p className="m-0 text-[14px] font-semibold text-ink">Help</p>
+                <p className="m-0 text-[13px] text-ink-muted">FAQs and troubleshooting.</p>
+              </div>
+            </div>
+            <ChevronRightIcon size={16} className="shrink-0 text-ink-muted" />
+          </button>
+
+          <button
+            type="button"
+            className="flex items-center justify-between gap-4 rounded-xl border border-surface-border bg-base px-4 py-3.5 text-left transition-colors hover:bg-surface-hover"
+            onClick={onOpenDocs}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-violet/15 text-brand-blue">
+                <DocsIcon size={18} />
+              </span>
+              <div>
+                <p className="m-0 text-[14px] font-semibold text-ink">Docs</p>
+                <p className="m-0 text-[13px] text-ink-muted">How the app works, end to end.</p>
+              </div>
+            </div>
+            <ChevronRightIcon size={16} className="shrink-0 text-ink-muted" />
           </button>
         </div>
       </div>

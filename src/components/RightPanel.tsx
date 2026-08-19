@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TopTippedPeriod } from '../types'
-import { SearchIcon, FlameIcon } from './icons'
+import { SearchIcon, FlameIcon, XIcon } from './icons'
 import { VerifiedBadge } from './VerifiedBadge'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { useUserSearch } from '../hooks/useUserSearch'
 import { useTopTipped } from '../hooks/useTopTipped'
 import { useTopTippedPosts } from '../hooks/useTopTippedPosts'
+import { useClickOutside } from '../hooks/useClickOutside'
 
 const PERIOD_TABS: { value: TopTippedPeriod; label: string }[] = [
   { value: 'weekly', label: 'This Week' },
@@ -24,11 +25,16 @@ export function RightPanel({
   onSearchChange,
   onVisitProfile,
   onVisitPost,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   searchQuery: string
   onSearchChange: (v: string) => void
   onVisitProfile?: (walletAddress: string) => void
   onVisitPost?: (walletAddress: string, postId: string) => void
+  /** Controls the slide-over drawer variant shown below the `lg` breakpoint. */
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }) {
   const { results: userResults, loading: searching } = useUserSearch(searchQuery)
   const showDropdown = searchQuery.trim().length > 0
@@ -39,13 +45,37 @@ export function RightPanel({
   const { rows: topUsers, loading: loadingUsers } = useTopTipped(period)
   const { rows: topPosts, loading: loadingPosts } = useTopTippedPosts(period)
 
+  const drawerRef = useRef<HTMLDivElement>(null)
+  useClickOutside(drawerRef, () => onMobileClose?.(), mobileOpen)
+
+  // Kunci scroll body selagi drawer terbuka di layar <lg
+  useEffect(() => {
+    if (!mobileOpen) return
+    const original = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [mobileOpen])
+
+  // Lepas fokus dari elemen di dalam drawer sebelum wrapper-nya di-aria-hidden,
+  // supaya tidak melanggar aturan aria-hidden-focus-descendant.
+  useEffect(() => {
+    if (mobileOpen) return
+    const active = document.activeElement as HTMLElement | null
+    if (active && drawerRef.current?.contains(active)) {
+      active.blur()
+    }
+  }, [mobileOpen])
+
   function selectUser(walletAddress: string) {
     onVisitProfile?.(walletAddress)
     onSearchChange('')
+    onMobileClose?.()
   }
 
-  return (
-    <aside className="sticky top-0 hidden h-screen flex-col gap-4 overflow-y-auto px-4 py-4 lg:flex">
+  const panelBody = (
+    <>
       <div className="relative">
         <div className="flex items-center gap-2.5 rounded-full border border-surface-border bg-surface px-4 py-2.5 transition-colors focus-within:border-brand-violet/60 focus-within:shadow-glow">
           <span className="text-ink-faint">
@@ -258,6 +288,49 @@ export function RightPanel({
       </div>
 
       <p className="px-1 text-[12px] text-ink-faint">Musyawarah © 2026</p>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Panel tetap (desktop, ≥ lg) */}
+      <aside className="sticky top-0 hidden h-screen flex-col gap-4 overflow-y-auto px-4 py-4 lg:flex">
+        {panelBody}
+      </aside>
+
+      {/* Drawer slide-over (< lg), dikontrol oleh tombol toggle di header mobile */}
+      <div
+        className={`fixed inset-0 z-40 lg:hidden ${mobileOpen ? '' : 'pointer-events-none'}`}
+        aria-hidden={!mobileOpen}
+      >
+        <div
+          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${
+            mobileOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={onMobileClose}
+        />
+        <div
+          ref={drawerRef}
+          role="dialog"
+          aria-label="Leaderboard & Search"
+          className={`absolute right-0 top-0 flex h-full w-[86%] max-w-[360px] flex-col gap-4 overflow-y-auto bg-base px-4 py-4 shadow-2xl transition-transform duration-200 ease-out ${
+            mobileOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="m-0 font-display text-[16px] font-bold text-ink">Leaderboard</h2>
+            <button
+              type="button"
+              onClick={onMobileClose}
+              aria-label="Tutup panel"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
+            >
+              <XIcon size={16} />
+            </button>
+          </div>
+          {panelBody}
+        </div>
+      </div>
+    </>
   )
 }

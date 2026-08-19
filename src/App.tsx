@@ -10,6 +10,8 @@ import { useRouter } from './hooks/useRouter'
 import { TREASURY_WALLET } from './hooks/useOrders'
 import {
   adminPath,
+  docsPath,
+  helpPath,
   homePath,
   marketplacePath,
   messagesPath,
@@ -22,6 +24,7 @@ import {
 } from './utils/routes'
 import { Sidebar, type View } from './components/Sidebar'
 import { RightPanel } from './components/RightPanel'
+import { MobileNavDrawer } from './components/MobileNavDrawer'
 import { PostComposer } from './components/PostComposer'
 import { Feed } from './components/Feed'
 import { LandingPage } from './components/LandingPage'
@@ -33,20 +36,25 @@ import { MessagesPage } from './components/MessagesPage'
 import { MarketplacePage } from './components/MarketplacePage'
 import { NotificationsPage } from './components/NotificationsPage'
 import { SettingsPage } from './components/SettingsPage'
+import { HelpPage } from './components/HelpPage'
+import { DocsPage } from './components/DocsPage'
 import { AdminShell } from './components/admin/AdminShell'
-import { ConnectWallet } from './components/ConnectWallet'
-import { BellIcon, BriefcaseIcon, FeatherIcon, LogoMark, SettingsIcon } from './components/icons'
+import { useProfile } from './contexts/ProfileContext'
+import { BellIcon, BriefcaseIcon, FeatherIcon, HomeIcon, LogoMark, MessageIcon, TrophyIcon } from './components/icons'
 import { focusComposer } from './utils/composer'
-import { shortenAddress } from './utils/avatar'
+import { shortenAddress, avatarColor, avatarInitial } from './utils/avatar'
 import './index.css'
 
 function AppShell() {
   const { walletAddress } = useWallet()
+  const { profile } = useProfile()
   const { posts, loading, error, refresh } = usePosts()
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false)
   const { totalUnread } = useConversations()
   const { unreadCount: unreadNotifications } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'listings'>('all')
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory[]>([])
   const { route: rawRoute, navigate } = useRouter()
   const route = rawRoute.view === 'landing' ? { view: 'home' as const } : rawRoute
@@ -79,7 +87,8 @@ function AppShell() {
     navigate(homePath())
   }
 
-  const sidebarView: View | 'post' = route.view
+  const sidebarView: View | 'post' =
+    route.view === 'help' || route.view === 'docs' ? 'settings' : route.view
   const headerTitle =
     route.view === 'home'
       ? 'Home'
@@ -93,15 +102,19 @@ function AppShell() {
               ? 'Quests'
               : route.view === 'settings'
                 ? 'Settings'
-                : route.view === 'admin'
-                  ? 'Admin'
-                  : route.view === 'marketplace'
-                    ? 'Marketplace'
-                    : route.view === 'post'
-                      ? 'Post'
-                      : route.wallet
-                        ? shortenAddress(route.wallet)
-                        : 'Profile'
+                : route.view === 'help'
+                  ? 'Help'
+                  : route.view === 'docs'
+                    ? 'Docs'
+                    : route.view === 'admin'
+                      ? 'Admin'
+                      : route.view === 'marketplace'
+                        ? 'Marketplace'
+                        : route.view === 'post'
+                          ? 'Post'
+                          : route.wallet
+                            ? shortenAddress(route.wallet)
+                            : 'Profile'
 
   function handleSidebarNavigate(v: View) {
     if (v === 'profile') {
@@ -129,8 +142,18 @@ function AppShell() {
       />
 
       <main className="min-h-screen border-surface-border pb-20 md:border-x md:pb-0">
-        <header className="sticky top-0 z-10 hidden border-b border-surface-border bg-base/80 px-4 py-3 backdrop-blur-xl md:block">
+        <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-surface-border bg-base/80 px-4 py-3 backdrop-blur-xl md:flex">
           <h1 className="m-0 font-display text-[19px] font-bold tracking-tight text-ink">{headerTitle}</h1>
+          <button
+            type="button"
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors lg:hidden ${
+              rightPanelOpen ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+            }`}
+            onClick={() => setRightPanelOpen(true)}
+            aria-label="Buka leaderboard"
+          >
+            <TrophyIcon size={19} filled={rightPanelOpen} />
+          </button>
         </header>
 
         {route.view === 'home' ? (
@@ -267,7 +290,19 @@ function AppShell() {
           </div>
         ) : route.view === 'settings' ? (
           <div className="px-4 pt-4">
-            <SettingsPage onBack={goHome} />
+            <SettingsPage
+              onBack={goHome}
+              onOpenHelp={() => navigate(helpPath())}
+              onOpenDocs={() => navigate(docsPath())}
+            />
+          </div>
+        ) : route.view === 'help' ? (
+          <div className="px-4 pt-4">
+            <HelpPage onBack={() => navigate(settingsPath())} />
+          </div>
+        ) : route.view === 'docs' ? (
+          <div className="px-4 pt-4">
+            <DocsPage onBack={() => navigate(settingsPath())} />
           </div>
         ) : route.view === 'marketplace' ? (
           <div className="px-4 pt-4">
@@ -309,77 +344,96 @@ function AppShell() {
         onSearchChange={setSearchQuery}
         onVisitProfile={visitProfile}
         onVisitPost={(_walletAddress, postId) => visitPost(postId)}
+        mobileOpen={rightPanelOpen}
+        onMobileClose={() => setRightPanelOpen(false)}
       />
 
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-border bg-base/80 px-4 py-2.5 backdrop-blur-xl md:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-black">
-          <LogoMark size={20} />
-        </div>
+        <button
+          type="button"
+          className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[12px] font-semibold text-white"
+          style={walletAddress ? { background: avatarColor(walletAddress) } : undefined}
+          onClick={() => setNavDrawerOpen(true)}
+          aria-label="Buka menu"
+        >
+          {walletAddress ? (
+            profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              avatarInitial(profile?.username || walletAddress)
+            )
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-white dark:bg-black">
+              <LogoMark size={20} />
+            </span>
+          )}
+        </button>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              route.view === 'notifications' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
-            }`}
-            onClick={() => navigate(notificationsPath())}
-            aria-label="Notifications"
-          >
-            <BellIcon size={19} filled={route.view === 'notifications'} />
-            {unreadNotifications > 0 && (
-              <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-notify" aria-hidden="true" />
-            )}
-          </button>
-          <button
-            type="button"
             className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              route.view === 'settings' ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
+              rightPanelOpen ? 'bg-surface-hover text-ink' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'
             }`}
-            onClick={() => navigate(settingsPath())}
-            aria-label="Settings"
+            onClick={() => setRightPanelOpen(true)}
+            aria-label="Buka leaderboard"
           >
-            <SettingsIcon size={19} filled={route.view === 'settings'} />
+            <TrophyIcon size={19} filled={rightPanelOpen} />
           </button>
-          <ConnectWallet />
         </div>
       </div>
 
+      <MobileNavDrawer
+        open={navDrawerOpen}
+        onClose={() => setNavDrawerOpen(false)}
+        view={sidebarView}
+        onNavigate={handleSidebarNavigate}
+        isTreasury={isTreasury}
+      />
+
       <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-surface-border bg-surface/90 backdrop-blur-xl md:hidden">
         <button
-          className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            route.view === 'home' ? 'text-brand-violetSoft' : 'text-ink-muted'
+          className={`flex flex-1 items-center justify-center py-3 transition-colors ${
+            route.view === 'home' ? 'text-ink' : 'text-ink-muted hover:text-ink'
           }`}
           onClick={goHome}
+          aria-label="Home"
         >
-          Home
+          <HomeIcon size={24} filled={route.view === 'home'} />
         </button>
         <button
-          className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            route.view === 'profile' ? 'text-brand-violetSoft' : 'text-ink-muted'
+          className={`flex flex-1 items-center justify-center py-3 transition-colors ${
+            route.view === 'marketplace' ? 'text-ink' : 'text-ink-muted hover:text-ink'
           }`}
-          onClick={goToOwnProfile}
+          onClick={() => navigate(marketplacePath())}
+          aria-label="Marketplace"
         >
-          Profile
+          <BriefcaseIcon size={22} />
         </button>
         <button
-          className={`relative flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            route.view === 'messages' ? 'text-brand-violetSoft' : 'text-ink-muted'
+          className={`relative flex flex-1 items-center justify-center py-3 transition-colors ${
+            route.view === 'notifications' ? 'text-ink' : 'text-ink-muted hover:text-ink'
+          }`}
+          onClick={() => navigate(notificationsPath())}
+          aria-label="Notifications"
+        >
+          <BellIcon size={24} filled={route.view === 'notifications'} />
+          {unreadNotifications > 0 && (
+            <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-notify" aria-hidden="true" />
+          )}
+        </button>
+        <button
+          className={`relative flex flex-1 items-center justify-center py-3 transition-colors ${
+            route.view === 'messages' ? 'text-ink' : 'text-ink-muted hover:text-ink'
           }`}
           onClick={() => navigate(messagesPath())}
+          aria-label="Messages"
         >
-          Messages
+          <MessageIcon size={24} filled={route.view === 'messages'} />
           {totalUnread > 0 && (
             <span className="absolute right-[26%] top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-notify px-1 text-[10px] font-bold text-white">
               {totalUnread > 9 ? '9+' : totalUnread}
             </span>
           )}
-        </button>
-        <button
-          className={`flex flex-1 items-center justify-center py-3 text-[15px] font-bold transition-colors ${
-            route.view === 'verify' ? 'text-brand-violetSoft' : 'text-ink-muted'
-          }`}
-          onClick={() => navigate(verifyPath())}
-        >
-          Verify
         </button>
       </nav>
 

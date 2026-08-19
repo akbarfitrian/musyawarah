@@ -40,10 +40,10 @@ export function LandingPage({ onLaunch }: { onLaunch: () => void }) {
       <div className="grid w-full max-w-[880px] grid-cols-1 overflow-hidden rounded-[20px] border border-white/10 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.6)] sm:grid-cols-[1.1fr_1fr]">
         <div className="flex min-h-[280px] flex-col items-center justify-center gap-[22px] bg-black px-10 py-14 text-center sm:min-h-[480px]">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-              <LogoMark size={20} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-black">
+              <LogoMark size={40} />
             </div>
-            <span className="font-display text-[clamp(1.9rem,4vw,2.4rem)] font-semibold italic text-white">musyawarah</span>
+            <span className="font-display text-[clamp(1.9rem,4vw,2.4rem)] font-semibold text-white">Musyawarah</span>
           </div>
 
           <div className="relative min-h-[104px] w-full max-w-[34ch] sm:min-h-[120px]">
@@ -77,16 +77,16 @@ export function LandingPage({ onLaunch }: { onLaunch: () => void }) {
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center gap-4 bg-surface px-10 py-14 text-center">
-          <p className="m-0 text-[13px] text-ink-faint">Your wallet is your profile.</p>
+        <div className="flex flex-col items-center justify-center gap-4 bg-white px-10 py-14 text-center">
+          <p className="m-0 text-[13px] text-black">Your wallet is your profile.</p>
           <button
             type="button"
             onClick={onLaunch}
-            className="w-full max-w-[260px] rounded-full bg-white px-[22px] py-3.5 text-[15px] font-bold text-black transition-transform duration-150 hover:bg-[#e6e6e6] active:scale-[0.97]"
+            className="w-full max-w-[260px] rounded-full bg-black px-[22px] py-3.5 text-[15px] font-bold text-white transition-transform duration-150 hover:bg-[#1a1a1a] active:scale-[0.97]"
           >
-            Launch App →
+            Launch App
           </button>
-          <p className="m-0 text-[12.5px] text-ink-faint">No sign-up · No email · Just your wallet</p>
+          <p className="m-0 text-[12.5px] text-black">No sign-up · No email · Just your wallet</p>
         </div>
       </div>
     </div>

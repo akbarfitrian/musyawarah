@@ -67,6 +67,22 @@
     @apply bg-base;
   }
 
+  /* Beri ruang lebih lega di layar tablet & desktop, setara browser zoom ~90%.
+     Mobile (di bawah md) sengaja tidak disentuh karena sudah punya layout
+     single-column + bottom nav tersendiri yang sudah pas di scale 100%. */
+  @media (min-width: 768px) {
+    html {
+      zoom: 90%;
+    }
+  }
+
+  /* Layar sangat lebar (xl ke atas) sedikit lebih lega lagi */
+  @media (min-width: 1536px) {
+    html {
+      zoom: 85%;
+    }
+  }
+
   body {
     @apply m-0 min-h-screen bg-base text-ink font-sans text-[15px] leading-normal antialiased transition-colors duration-200;
   }
