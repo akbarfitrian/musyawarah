@@ -16,8 +16,8 @@ const DEFAULT_QUALITY = 0.8
 /**
  * Compresses an image file to WebP. Animated GIFs are returned unchanged
  * (canvas-based compression would flatten them to a single frame).
- * Falls back to the original file if compression fails or doesn't actually
- * shrink the file (e.g. a tiny image that's already well-optimized).
+ * Falls back to the original file only if compression fails outright
+ * (e.g. the browser can't decode the image or draw to canvas).
  */
 export async function compressImageToWebp(
   file: File,
@@ -45,9 +45,6 @@ export async function compressImageToWebp(
       canvas.toBlob(resolve, 'image/webp', quality)
     )
     if (!blob) return file
-
-    // Don't swap in a "compressed" file that's actually bigger.
-    if (blob.size >= file.size) return file
 
     const newName = file.name.replace(/\.[^./\\]+$/, '') + '.webp'
     return new File([blob], newName, { type: 'image/webp' })

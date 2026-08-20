@@ -8,7 +8,7 @@ import { useVerification } from '../hooks/useVerification'
 import { useProviderReputation } from '../hooks/useReviews'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
-import { formatBytes, MAX_AVATAR_BYTES, uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
+import { uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
 import { profilePath } from '../utils/routes'
 import { getNameChangeEligibility } from '../utils/nameCooldown'
 import { BriefcaseIcon, CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
@@ -409,14 +409,7 @@ export function ProfilePage({
         </div>
       </div>
 
-      {isOwnProfile && (
-        <>
-          {avatarError && <p className="mt-2 px-1 text-xs text-danger">{avatarError}</p>}
-          <p className="mt-2 px-1 text-[12px] text-ink-faint">
-            Format JPG/PNG/WEBP/GIF, max {formatBytes(MAX_AVATAR_BYTES)}.
-          </p>
-        </>
-      )}
+      {isOwnProfile && avatarError && <p className="mt-2 px-1 text-xs text-danger">{avatarError}</p>}
 
       <div className="mt-4 -mx-4">
         <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
