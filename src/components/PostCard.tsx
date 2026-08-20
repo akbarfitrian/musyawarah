@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Post } from '../types'
 import { TipButton } from './TipButton'
 import { RepostButton } from './RepostButton'
+import { LikeButton } from './LikeButton'
 import { VerifiedBadge } from './VerifiedBadge'
 import { avatarColor, avatarInitial, resolveAuthorAvatar, shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
@@ -13,7 +14,7 @@ import { canEditPost, maxPostChars, tierAccent, withAlpha } from '../lib/verific
 import { supabase } from '../supabaseClient'
 import { setListingActive } from '../hooks/usePosts'
 import { postPath } from '../utils/routes'
-import { CopyLinkButton } from './CopyLinkButton'
+import { PostOptionsMenu } from './PostOptionsMenu'
 import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
 
 export function PostCard({
@@ -43,6 +44,7 @@ export function PostCard({
   const isOwnPost = walletAddress === post.author_wallet
   const listingHasOrders = post.is_listing && (post.order_count ?? 0) > 0
   const avatarUrl = resolveAuthorAvatar(post.author_wallet, post.author_avatar_url, walletAddress, myProfile?.avatar_url)
+  const displayName = isOwnPost ? myProfile?.name ?? post.author_name : post.author_name
   const accent = tierAccent(post.author_verification_tier)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -174,16 +176,35 @@ export function PostCard({
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className="truncate font-mono text-[14px] font-semibold text-ink hover:underline"
-              onClick={() => onVisitProfile?.(post.author_wallet)}
-            >
-              {shortenAddress(post.author_wallet)}
-            </button>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {displayName ? (
+              <button
+                type="button"
+                className="truncate text-[14px] font-semibold text-ink hover:underline"
+                onClick={() => onVisitProfile?.(post.author_wallet)}
+              >
+                {displayName}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="truncate font-mono text-[14px] font-semibold text-ink hover:underline"
+                onClick={() => onVisitProfile?.(post.author_wallet)}
+              >
+                {shortenAddress(post.author_wallet)}
+              </button>
+            )}
             <VerifiedBadge tier={post.author_verification_tier} />
-            <span className="text-ink-faint">·</span>
+            {displayName && (
+              <button
+                type="button"
+                className="truncate font-mono text-[13px] text-ink-muted hover:underline"
+                onClick={() => onVisitProfile?.(post.author_wallet)}
+              >
+                {shortenAddress(post.author_wallet)}
+              </button>
+            )}
+            <span className="shrink-0 text-ink-faint">·</span>
             {onVisitPost ? (
               <button
                 type="button"
@@ -197,7 +218,7 @@ export function PostCard({
             )}
             {post.edited_at && <span className="shrink-0 text-[12px] text-ink-faint">· edited</span>}
             <span className="ml-auto flex items-center gap-1">
-              <CopyLinkButton path={postPath(post.id)} label="Copy link to post" className="h-8 w-8" />
+              <PostOptionsMenu path={postPath(post.id)} className="h-8 w-8" />
               {canEdit && !isEditing && (
                   <button
                     className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
@@ -239,12 +260,25 @@ export function PostCard({
               </span>
           </div>
 
+          {isEditing ? null : (
+            post.content && (
+              <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-normal text-ink">
+                {linkify(post.content)}
+              </p>
+            )
+          )}
+
           {post.is_listing && !isEditing && (
             <div
               className="mt-2 overflow-hidden rounded-2xl border"
               style={{ borderColor: withAlpha(accent.base, 0.25), backgroundColor: withAlpha(accent.base, 0.05) }}
             >
-              <div className="flex items-start justify-between gap-3 px-3.5 pt-3">
+              <div
+                className={`flex items-start justify-between gap-3 px-3.5 pt-3 ${
+                  !post.listing_active || (post.completed_order_count ?? 0) > 0 ? '' : 'pb-3.5'
+                }`}
+              >
+
                 <div className="min-w-0">
                   <span
                     className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide"
@@ -336,17 +370,7 @@ export function PostCard({
                 </div>
               </div>
             </div>
-          ) : (
-            post.content && (
-              <p
-                className={`whitespace-pre-wrap break-words text-[15px] leading-normal text-ink ${
-                  post.is_listing ? 'mt-2' : 'mt-0.5'
-                }`}
-              >
-                {linkify(post.content)}
-              </p>
-            )
-          )}
+          ) : null}
           {post.image_url && (
             <div className="mt-2 overflow-hidden rounded-2xl border border-surface-border bg-surface-soft">
               <img src={post.image_url} alt="" className="max-h-[420px] w-full object-contain" loading="lazy" />
@@ -385,7 +409,13 @@ export function PostCard({
           )}
 
           <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-1">
+            <div className="-ml-2 flex items-center gap-1">
+              <TipButton
+                postId={post.id}
+                toWallet={post.author_wallet}
+                tipTotal={post.tip_total ?? 0}
+                onTipped={onTipped}
+              />
               <RepostButton
                 postId={post.id}
                 postAuthorWallet={post.author_wallet}
@@ -394,25 +424,26 @@ export function PostCard({
                 repostedByMe={post.reposted_by_me ?? false}
                 onReposted={onTipped}
               />
-              <TipButton
+              <LikeButton
                 postId={post.id}
-                toWallet={post.author_wallet}
-                tipTotal={post.tip_total ?? 0}
-                onTipped={onTipped}
+                likeTotal={post.like_total ?? 0}
+                likedByMe={post.liked_by_me ?? false}
+                onLiked={onTipped}
               />
             </div>
-            {post.is_listing && !isOwnPost && post.listing_active && onMessageProvider && (
-              <button
-                type="button"
-                className="flex h-7 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-base shadow-sm transition-transform duration-150 hover:scale-[1.03] active:scale-95"
-                style={{ backgroundImage: `linear-gradient(to right, ${accent.base}, ${accent.light})` }}
-                onClick={() => onMessageProvider(post.author_wallet, post.id)}
-              >
-                <MessageIcon size={12} />
-                Negotiate & Hire
-              </button>
-            )}
           </div>
+
+          {post.is_listing && !isOwnPost && post.listing_active && onMessageProvider && (
+            <button
+              type="button"
+              className="mt-2.5 flex h-9 w-full items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold text-base shadow-sm transition-transform duration-150 hover:scale-[1.01] active:scale-[0.99]"
+              style={{ backgroundImage: `linear-gradient(to right, ${accent.base}, ${accent.light})` }}
+              onClick={() => onMessageProvider(post.author_wallet, post.id)}
+            >
+              <MessageIcon size={14} />
+              Hire
+            </button>
+          )}
         </div>
       </article>
     </div>

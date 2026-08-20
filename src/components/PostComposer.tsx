@@ -347,15 +347,18 @@ export function PostComposer({
 
           <button
             type="button"
-            className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-              isListing ? 'bg-gold/15 text-gold' : 'text-ink-faint hover:bg-gold/10 hover:text-gold'
+            className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition-colors ${
+              isListing
+                ? 'bg-gold/15 text-gold'
+                : 'text-ink-muted hover:bg-gold/10 hover:text-gold'
             }`}
             onClick={toggleListing}
             disabled={!walletAddress || posting}
             aria-label={isListing ? 'Remove skill listing details' : 'Post as a skill listing'}
             title={isListing ? 'Remove skill listing details' : 'Post as a skill listing'}
           >
-            <BriefcaseIcon size={18} />
+            <BriefcaseIcon size={16} />
+            {isListing ? 'Listing' : 'Add listing'}
           </button>
 
           {content.length > 0 && (

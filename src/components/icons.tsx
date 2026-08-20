@@ -19,13 +19,29 @@ export function MenuIcon({ size = 24 }: IconProps) {
 }
 
 export function HomeIcon({ size = 24, filled = false }: IconProps) {
+  if (filled) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path
+          d="M12 2.6 2.4 11h2.4v9a1 1 0 0 0 1 1h4.7v-6.4h3v6.4h4.7a1 1 0 0 0 1-1v-9h2.4L12 2.6Z"
+          fill="currentColor"
+        />
+      </svg>
+    )
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path
-        d="M4 11.5 12 4l8 7.5M6 10v9h5v-5.5h2V19h5v-9"
+        d="M3.5 10.8 12 3.4l8.5 7.4"
         stroke="currentColor"
-        strokeWidth={filled ? 0 : 2}
-        fill={filled ? 'currentColor' : 'none'}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 9.5V19a1 1 0 0 0 1 1h3.4v-5.2a1 1 0 0 1 1-1h1.2a1 1 0 0 1 1 1V20H17a1 1 0 0 0 1-1V9.5"
+        stroke="currentColor"
+        strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -244,21 +260,15 @@ export function PencilIcon({ size = 14 }: IconProps) {
 
 export function RepostIcon({ size = 18 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path
-        d="M6 4.5v9a2 2 0 002 2h9M17 12l3 3.5-3 3.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M18 19.5v-9a2 2 0 00-2-2H7M7 12l-3-3.5L7 5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" />
     </svg>
   )
 }
@@ -677,6 +687,31 @@ export function StarIcon({ size = 14, filled = false }: IconProps) {
         strokeWidth="1.6"
         strokeLinejoin="round"
       />
+    </svg>
+  )
+}
+
+export function HeartIcon({ size = 18, filled = false }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+        stroke="currentColor"
+        strokeWidth={filled ? 0 : 2}
+        fill={filled ? 'currentColor' : 'none'}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export function MoreIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="5" cy="12" r="1.9" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.9" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.9" fill="currentColor" />
     </svg>
   )
 }

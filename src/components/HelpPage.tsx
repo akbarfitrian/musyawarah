@@ -35,7 +35,7 @@ const SECTIONS: FaqSection[] = [
       {
         id: 'start-wallet',
         q: 'How do I get started?',
-        a: 'Tap "Connect Wallet" and log in with your Sphere Wallet — that\'s your account. There\'s no email or password to set up. Once connected, your wallet address becomes your identity across the whole app, and you can add a username, avatar, and bio from your profile.',
+        a: 'Tap "Connect Wallet" and log in with your Sphere Wallet — that\'s your account. There\'s no email or password to set up. Once connected, your wallet address becomes your identity across the whole app, and you can add a name, avatar, and bio from your profile.',
       },
       {
         id: 'start-uct',

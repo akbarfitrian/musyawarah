@@ -14,7 +14,7 @@ interface ProfileContextValue {
   profile: Profile | null
   loading: boolean
   refresh: () => Promise<void>
-  updateProfile: (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username'>>) => Promise<Profile>
+  updateProfile: (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username' | 'name'>>) => Promise<Profile>
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null)
@@ -52,7 +52,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const updateProfile = useCallback(
-    async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username'>>) => {
+    async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username' | 'name'>>) => {
       if (!walletAddress) throw new Error('Wallet not connected')
       const { data, error } = await supabase
         .from('profiles')

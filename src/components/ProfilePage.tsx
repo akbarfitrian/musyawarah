@@ -10,6 +10,7 @@ import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { formatBytes, MAX_AVATAR_BYTES, uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
 import { profilePath } from '../utils/routes'
+import { getNameChangeEligibility } from '../utils/nameCooldown'
 import { BriefcaseIcon, CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
 import { Feed } from './Feed'
 import { FollowButton } from './FollowButton'
@@ -18,6 +19,7 @@ import { RatingStars } from './RatingStars'
 import { CopyLinkButton } from './CopyLinkButton'
 
 const BIO_MAX_LEN = 160
+const NAME_MAX_LEN = 50
 
 export function ProfilePage({
   walletAddress: visitedWallet,
@@ -55,6 +57,7 @@ export function ProfilePage({
   const { reputation } = useProviderReputation(targetWallet ?? null)
   const profile = isOwnProfile ? myProfile : viewedProfile
   const verificationTier = isOwnProfile ? myVerificationTier : viewedVerificationTier
+  const nameEligibility = getNameChangeEligibility(profile?.name_updated_at)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -64,6 +67,11 @@ export function ProfilePage({
   const [bioDraft, setBioDraft] = useState('')
   const [savingBio, setSavingBio] = useState(false)
   const [bioError, setBioError] = useState<string | null>(null)
+
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
 
   function refreshAll() {
     refresh()
@@ -92,6 +100,32 @@ export function ProfilePage({
     } finally {
       setUploadingAvatar(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function startEditName() {
+    if (!nameEligibility.canChange) return
+    setNameDraft(profile?.name ?? '')
+    setNameError(null)
+    setEditingName(true)
+  }
+
+  async function saveName() {
+    setSavingName(true)
+    setNameError(null)
+    try {
+      await updateProfile({ name: nameDraft.trim() || null })
+      setEditingName(false)
+    } catch (e) {
+      const message = (e as { message?: string } | null)?.message ?? ''
+      if (message.includes('name_cooldown_active')) {
+        setNameError('You can only change your name once every 30 days.')
+      } else {
+        setNameError('Failed to save name. Try again.')
+      }
+      console.error(e)
+    } finally {
+      setSavingName(false)
     }
   }
 
@@ -200,11 +234,76 @@ export function ProfilePage({
         </div>
 
         <div className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 truncate font-mono text-[16px] font-semibold text-ink">
-            {shortenAddress(targetWallet)}
-            <VerifiedBadge tier={verificationTier} size={15} />
-            <CopyLinkButton path={profilePath(targetWallet)} label="Copy link to profile" className="h-7 w-7" />
-          </span>
+          {isOwnProfile && editingName ? (
+            <div>
+              <input
+                type="text"
+                className="w-full rounded-xl border border-surface-border bg-base px-3 py-1.5 text-[16px] font-semibold text-ink placeholder:text-ink-faint placeholder:font-normal focus:border-brand-violet/60 focus:shadow-glow focus:outline-none"
+                value={nameDraft}
+                maxLength={NAME_MAX_LEN}
+                placeholder="Add your name"
+                onChange={(e) => setNameDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-xs tabular-nums text-ink-faint">{NAME_MAX_LEN - nameDraft.length}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-surface-border px-3.5 py-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
+                    onClick={() => setEditingName(false)}
+                    disabled={savingName}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full bg-brand-gradient px-3.5 py-1.5 text-[13px] font-semibold text-accent-contrast shadow-glow transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+                    onClick={saveName}
+                    disabled={savingName}
+                  >
+                    {savingName ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+              {nameError && <p className="mt-1 text-xs text-danger">{nameError}</p>}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-[16px] font-semibold text-ink">
+                {profile?.name || shortenAddress(targetWallet)}
+              </span>
+              <VerifiedBadge tier={verificationTier} size={15} />
+              {isOwnProfile && (
+                <button
+                  type="button"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
+                  onClick={startEditName}
+                  disabled={!nameEligibility.canChange}
+                  aria-label="Edit name"
+                  title={
+                    nameEligibility.canChange
+                      ? 'Edit name'
+                      : `You can change your name again in ${nameEligibility.daysRemaining} day${nameEligibility.daysRemaining === 1 ? '' : 's'}`
+                  }
+                >
+                  <PencilIcon size={12} />
+                </button>
+              )}
+              <CopyLinkButton path={profilePath(targetWallet)} label="Copy link to profile" className="h-7 w-7" />
+            </div>
+          )}
+
+          {!editingName && profile?.name && (
+            <p className="m-0 truncate font-mono text-[13px] text-ink-muted">{shortenAddress(targetWallet)}</p>
+          )}
+
+          {isOwnProfile && !editingName && !nameEligibility.canChange && (
+            <p className="m-0 mt-0.5 text-[12px] text-ink-faint">
+              You can change your name again in {nameEligibility.daysRemaining} day
+              {nameEligibility.daysRemaining === 1 ? '' : 's'}.
+            </p>
+          )}
 
           {reputation && reputation.review_count > 0 && (
             <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink-muted">
@@ -272,8 +371,8 @@ export function ProfilePage({
             </div>
           )}
 
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-surface-border pt-3">
-            <div className="flex items-center gap-3 text-[13px] text-ink-muted">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-border pt-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-muted">
               <span>
                 <span className="font-bold text-ink">{posts.length}</span> {posts.length === 1 ? 'post' : 'posts'}
               </span>
@@ -285,18 +384,8 @@ export function ProfilePage({
               </span>
             </div>
 
-            {isOwnProfile && onGetVerified && (
-              <button
-                type="button"
-                className="rounded-full border border-surface-border px-3.5 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-surface-hover"
-                onClick={onGetVerified}
-              >
-                {verificationTier === 'none' ? 'Get Verified' : 'Manage verification'}
-              </button>
-            )}
-
             {!isOwnProfile && myWallet && (
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <FollowButton
                   isFollowing={isFollowing}
                   loading={followLoading}

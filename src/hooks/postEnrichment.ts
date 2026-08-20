@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient'
 import type { VerificationTier } from '../lib/verification'
-import type { Post, Repost, Tip } from '../types'
+import type { Like, Post, Repost, Tip } from '../types'
 
 /**
  * Takes raw rows from `posts` and attaches everything PostCard/Feed need to
@@ -13,8 +13,11 @@ export async function enrichPosts(postsData: Post[], viewerWallet?: string | nul
   const wallets = [...new Set(postsData.map((p) => p.author_wallet))]
   let tipTotals: Record<string, number> = {}
   let avatarByWallet: Record<string, string | null> = {}
+  let nameByWallet: Record<string, string | null> = {}
   let repostTotals: Record<string, number> = {}
   let repostedByMe: Record<string, boolean> = {}
+  let likeTotals: Record<string, number> = {}
+  let likedByMe: Record<string, boolean> = {}
   let verificationTierByWallet: Record<string, VerificationTier> = {}
 
   if (ids.length > 0) {
@@ -54,6 +57,32 @@ export async function enrichPosts(postsData: Post[], viewerWallet?: string | nul
         )
       }
     }
+
+    const { data: likesData, error: likesError } = await supabase
+      .from('likes')
+      .select('post_id, wallet_address')
+      .in('post_id', ids)
+
+    if (likesError) {
+      console.warn('[MUSYAWARAH] Gagal ngambil data like:', likesError)
+    } else {
+      likeTotals = (likesData as Pick<Like, 'post_id' | 'wallet_address'>[]).reduce(
+        (acc, l) => {
+          acc[l.post_id] = (acc[l.post_id] ?? 0) + 1
+          return acc
+        },
+        {} as Record<string, number>
+      )
+      if (viewerWallet) {
+        likedByMe = (likesData as Pick<Like, 'post_id' | 'wallet_address'>[]).reduce(
+          (acc, l) => {
+            if (l.wallet_address === viewerWallet) acc[l.post_id] = true
+            return acc
+          },
+          {} as Record<string, boolean>
+        )
+      }
+    }
   }
 
   let orderCounts: Record<string, number> = {}
@@ -80,7 +109,7 @@ export async function enrichPosts(postsData: Post[], viewerWallet?: string | nul
   if (wallets.length > 0) {
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('wallet_address, avatar_url')
+      .select('wallet_address, avatar_url, name')
       .in('wallet_address', wallets)
 
     if (profilesError) {
@@ -89,6 +118,13 @@ export async function enrichPosts(postsData: Post[], viewerWallet?: string | nul
       avatarByWallet = (profilesData ?? []).reduce(
         (acc, p) => {
           acc[p.wallet_address] = p.avatar_url
+          return acc
+        },
+        {} as Record<string, string | null>
+      )
+      nameByWallet = (profilesData ?? []).reduce(
+        (acc, p) => {
+          acc[p.wallet_address] = p.name
           return acc
         },
         {} as Record<string, string | null>
@@ -118,8 +154,11 @@ export async function enrichPosts(postsData: Post[], viewerWallet?: string | nul
     ...p,
     tip_total: tipTotals[p.id] ?? 0,
     author_avatar_url: avatarByWallet[p.author_wallet] ?? null,
+    author_name: nameByWallet[p.author_wallet] ?? null,
     repost_total: repostTotals[p.id] ?? 0,
     reposted_by_me: repostedByMe[p.id] ?? false,
+    like_total: likeTotals[p.id] ?? 0,
+    liked_by_me: likedByMe[p.id] ?? false,
     author_verification_tier: verificationTierByWallet[p.author_wallet],
     order_count: orderCounts[p.id] ?? 0,
     completed_order_count: completedOrderCounts[p.id] ?? 0,
@@ -135,7 +174,10 @@ export function samePostList(prev: Post[], next: Post[]): boolean {
       p.tip_total === next[i].tip_total &&
       p.repost_total === next[i].repost_total &&
       p.reposted_by_me === next[i].reposted_by_me &&
+      p.like_total === next[i].like_total &&
+      p.liked_by_me === next[i].liked_by_me &&
       p.author_avatar_url === next[i].author_avatar_url &&
+      p.author_name === next[i].author_name &&
       p.author_verification_tier === next[i].author_verification_tier &&
       p.order_count === next[i].order_count &&
       p.completed_order_count === next[i].completed_order_count

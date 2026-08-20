@@ -172,13 +172,13 @@ export function MobileNavDrawer({
                   {profile?.avatar_url ? (
                     <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    avatarInitial(profile?.username || walletAddress)
+                    avatarInitial(profile?.name || walletAddress)
                   )}
                 </span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-1">
                     <span className="truncate font-display text-[15px] font-bold text-ink">
-                      {profile?.username ? `@${profile.username}` : shortenAddress(walletAddress)}
+                      {profile?.name || shortenAddress(walletAddress)}
                     </span>
                     <VerifiedBadge tier={verificationTier} size={14} />
                   </span>
@@ -186,7 +186,7 @@ export function MobileNavDrawer({
                     <span className="block truncate text-[11px] font-medium text-danger">wallet locked</span>
                   ) : (
                     <span className="flex items-center gap-1 truncate font-mono text-[12px] text-ink-faint">
-                      {profile?.username ? shortenAddress(walletAddress) : null}
+                      {profile?.name ? shortenAddress(walletAddress) : null}
                     </span>
                   )}
                 </span>

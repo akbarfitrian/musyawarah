@@ -36,10 +36,11 @@ export function usePost(postId: string | undefined) {
         return
       }
 
-      const [tipsResult, repostsResult, profileResult, verificationResult] = await Promise.all([
+      const [tipsResult, repostsResult, likesResult, profileResult, verificationResult] = await Promise.all([
         supabase.from('tips').select('amount').eq('post_id', postId),
         supabase.from('reposts').select('wallet_address').eq('post_id', postId),
-        supabase.from('profiles').select('avatar_url').eq('wallet_address', postData.author_wallet).maybeSingle(),
+        supabase.from('likes').select('wallet_address').eq('post_id', postId),
+        supabase.from('profiles').select('avatar_url, name').eq('wallet_address', postData.author_wallet).maybeSingle(),
         supabase
           .from('verifications')
           .select('tier, expires_at')
@@ -51,6 +52,9 @@ export function usePost(postId: string | undefined) {
       const repostRows = repostsResult.data ?? []
       const repostTotal = repostRows.length
       const repostedByMe = walletAddress ? repostRows.some((r) => r.wallet_address === walletAddress) : false
+      const likeRows = likesResult.data ?? []
+      const likeTotal = likeRows.length
+      const likedByMe = walletAddress ? likeRows.some((l) => l.wallet_address === walletAddress) : false
 
       const verification = verificationResult.data
       const isExpired = Boolean(verification?.expires_at) && new Date(verification!.expires_at as string).getTime() <= Date.now()
@@ -60,7 +64,10 @@ export function usePost(postId: string | undefined) {
         tip_total: tipTotal,
         repost_total: repostTotal,
         reposted_by_me: repostedByMe,
+        like_total: likeTotal,
+        liked_by_me: likedByMe,
         author_avatar_url: profileResult.data?.avatar_url ?? null,
+        author_name: profileResult.data?.name ?? null,
         author_verification_tier: verification && !isExpired ? (verification.tier as VerificationTier) : undefined,
       })
     } catch (e) {

@@ -46,7 +46,7 @@ const SECTIONS: DocSection[] = [
       'There is no email or password. Your Sphere Wallet address is your account — connecting it is the only sign-up step.',
     points: [
       'Connecting works differently depending on context: inside the Sphere wallet\'s own app it talks to the wallet directly, and from a regular browser tab it opens a Sphere Connect popup window.',
-      'Once connected, you can set a username, upload an avatar photo, and write a short bio (up to 160 characters) from your profile.',
+      'Once connected, you can set a display name, upload an avatar photo, and write a short bio (up to 160 characters) from your profile.',
       'Your profile page shows two tabs — Posts and Listings — plus your follower/following counts and, if you\'ve completed orders as a provider, your average rating.',
       'A Copy Link button on posts and profiles lets you grab a shareable URL.',
       'Following another wallet is a single tap from their profile and affects their follower count and your following list.',

@@ -113,18 +113,18 @@ export function RightPanel({
                           {u.avatar_url ? (
                             <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            avatarInitial(u.username || u.wallet_address)
+                            avatarInitial(u.name || u.wallet_address)
                           )}
                         </span>
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1">
                           <span className="truncate text-[14px] font-semibold text-ink">
-                            {u.username ? `@${u.username}` : shortenAddress(u.wallet_address)}
+                            {u.name || shortenAddress(u.wallet_address)}
                           </span>
                           <VerifiedBadge tier={u.verification_tier} size={13} />
                         </div>
-                        {u.username && (
+                        {u.name && (
                           <span className="truncate font-mono text-[12px] text-ink-muted">
                             {shortenAddress(u.wallet_address)}
                           </span>
@@ -208,7 +208,7 @@ export function RightPanel({
                       {row.avatar_url ? (
                         <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        avatarInitial(row.username || row.wallet_address)
+                        avatarInitial(row.name || row.wallet_address)
                       )}
                     </span>
                   </button>
@@ -219,7 +219,7 @@ export function RightPanel({
                       onClick={() => onVisitProfile?.(row.wallet_address)}
                     >
                       <span className="truncate font-mono text-[13px] font-semibold text-ink">
-                        {row.username ? `@${row.username}` : shortenAddress(row.wallet_address)}
+                        {row.name || shortenAddress(row.wallet_address)}
                       </span>
                       <VerifiedBadge tier={row.verification_tier} size={13} />
                     </button>
@@ -245,7 +245,7 @@ export function RightPanel({
                   type="button"
                   className="flex w-full items-center gap-2.5 rounded-xl p-1 -m-1 text-left transition-colors hover:bg-surface-hover"
                   onClick={() => onVisitPost?.(row.author_wallet, row.post_id)}
-                  aria-label={`View post by ${row.username ? `@${row.username}` : shortenAddress(row.author_wallet)}`}
+                  aria-label={`View post by ${row.name || shortenAddress(row.author_wallet)}`}
                 >
                   <span className="w-5 shrink-0 text-center text-[13px] font-semibold text-ink-muted">
                     {i + 1}.
@@ -258,14 +258,14 @@ export function RightPanel({
                       {row.avatar_url ? (
                         <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        avatarInitial(row.username || row.author_wallet)
+                        avatarInitial(row.name || row.author_wallet)
                       )}
                     </span>
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
                       <span className="truncate font-mono text-[13px] font-semibold text-ink">
-                        {row.username ? `@${row.username}` : shortenAddress(row.author_wallet)}
+                        {row.name || shortenAddress(row.author_wallet)}
                       </span>
                       <VerifiedBadge tier={row.verification_tier} size={13} />
                     </span>

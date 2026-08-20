@@ -7,7 +7,7 @@ import { Feed } from './Feed'
 import { LISTING_CATEGORIES, type ListingCategory } from '../config/listingCategories'
 import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
-import { BriefcaseIcon, MessageIcon, TagIcon } from './icons'
+import { BriefcaseIcon, ChevronDownIcon, MessageIcon, TagIcon } from './icons'
 import type { Order, OrderStatus } from '../types'
 
 const SORT_LABEL: Record<ListingSort, string> = {
@@ -88,17 +88,20 @@ function BrowseTab({
       </div>
 
       <div className="mx-4 mb-2 flex items-center justify-end">
-        <select
-          className="rounded-full border border-surface-border bg-transparent px-3 py-1 text-[12px] font-semibold text-ink-muted focus:text-ink focus:outline-none"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as ListingSort)}
-        >
-          {(Object.keys(SORT_LABEL) as ListingSort[]).map((key) => (
-            <option key={key} value={key} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
-              {SORT_LABEL[key]}
-            </option>
-          ))}
-        </select>
+        <div className="relative inline-block">
+          <select
+            className="w-auto min-w-0 appearance-none rounded-full border border-surface-border bg-transparent py-0.5 pl-2.5 pr-6 text-[11px] font-semibold text-ink-muted focus:text-ink focus:outline-none"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as ListingSort)}
+          >
+            {(Object.keys(SORT_LABEL) as ListingSort[]).map((key) => (
+              <option key={key} value={key} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
+                {SORT_LABEL[key]}
+              </option>
+            ))}
+          </select>
+          <ChevronDownIcon size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted" />
+        </div>
       </div>
 
       <Feed

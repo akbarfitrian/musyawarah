@@ -34,7 +34,7 @@ export function useProfile(walletAddress: string | null) {
   }, [refresh])
 
   const updateProfile = useCallback(
-    async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username'>>) => {
+    async (fields: Partial<Pick<Profile, 'bio' | 'avatar_url' | 'username' | 'name'>>) => {
       if (!walletAddress) throw new Error('Wallet not connected')
       const { data, error } = await supabase
         .from('profiles')

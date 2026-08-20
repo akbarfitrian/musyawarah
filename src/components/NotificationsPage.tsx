@@ -4,7 +4,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { VerifiedBadge } from './VerifiedBadge'
-import { BellIcon, CoinIcon, LockIcon, RepostIcon, UserPlusIcon } from './icons'
+import { BellIcon, CoinIcon, HeartIcon, LockIcon, RepostIcon, UserPlusIcon } from './icons'
 import type { AppNotification } from '../types'
 
 function NotificationTypeIcon({ type }: { type: AppNotification['type'] }) {
@@ -19,6 +19,13 @@ function NotificationTypeIcon({ type }: { type: AppNotification['type'] }) {
     return (
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-cyan/15 text-brand-cyan">
         <RepostIcon size={16} />
+      </span>
+    )
+  }
+  if (type === 'like') {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger">
+        <HeartIcon size={16} filled />
       </span>
     )
   }
@@ -50,9 +57,11 @@ function NotificationRow({
       ? 'followed you'
       : notification.type === 'repost'
         ? 'reposted your post'
-        : notification.type === 'order_reminder'
-          ? 'has a transaction waiting on confirmation'
-          : `tipped you ${notification.amount ?? 0} UCT`
+        : notification.type === 'like'
+          ? 'liked your post'
+          : notification.type === 'order_reminder'
+            ? 'has a transaction waiting on confirmation'
+            : `tipped you ${notification.amount ?? 0} UCT`
 
   function visit() {
     onVisitProfile?.(wallet)
@@ -176,7 +185,7 @@ export function NotificationsPage({
             <BellIcon size={26} />
           </div>
           <p className="max-w-[240px] text-[13px] text-ink-muted">
-            No notifications yet. Follows, reposts, and tips on your posts will show up here.
+            No notifications yet. Follows, reposts, likes, and tips on your posts will show up here.
           </p>
         </div>
       ) : (

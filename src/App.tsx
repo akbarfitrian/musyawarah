@@ -25,6 +25,7 @@ import {
 import { Sidebar, type View } from './components/Sidebar'
 import { RightPanel } from './components/RightPanel'
 import { MobileNavDrawer } from './components/MobileNavDrawer'
+import { NamePromptModal } from './components/NamePromptModal'
 import { PostComposer } from './components/PostComposer'
 import { Feed } from './components/Feed'
 import { LandingPage } from './components/LandingPage'
@@ -47,9 +48,10 @@ import './index.css'
 
 function AppShell() {
   const { walletAddress } = useWallet()
-  const { profile } = useProfile()
+  const { profile, loading: profileLoading } = useProfile()
   const { posts, loading, error, refresh } = usePosts()
   const [navDrawerOpen, setNavDrawerOpen] = useState(false)
+  const [showNamePrompt, setShowNamePrompt] = useState(false)
   const { totalUnread } = useConversations()
   const { unreadCount: unreadNotifications } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
@@ -59,6 +61,11 @@ function AppShell() {
   const { route: rawRoute, navigate } = useRouter()
   const route = rawRoute.view === 'landing' ? { view: 'home' as const } : rawRoute
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
+
+  useEffect(() => {
+    if (!walletAddress || profileLoading) return
+    setShowNamePrompt(Boolean(profile && !profile.name))
+  }, [walletAddress, profileLoading, profile])
 
   function visitProfile(walletAddress: string) {
     navigate(profilePath(walletAddress))
@@ -156,7 +163,7 @@ function AppShell() {
               profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
               ) : (
-                avatarInitial(profile?.username || walletAddress)
+                avatarInitial(profile?.name || walletAddress)
               )
             ) : (
               <MenuIcon size={20} />
@@ -227,14 +234,13 @@ function AppShell() {
               </button>
               <button
                 type="button"
-                className={`flex items-center gap-1.5 px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+                className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
                   feedFilter === 'listings'
                     ? 'border-b-2 border-gold text-ink'
                     : 'text-ink-muted hover:text-ink'
                 }`}
                 onClick={() => setFeedFilter('listings')}
               >
-                <BriefcaseIcon size={14} />
                 Listings
               </button>
             </div>
@@ -394,6 +400,8 @@ function AppShell() {
         unreadMessages={totalUnread}
         unreadNotifications={unreadNotifications}
       />
+
+      {showNamePrompt && <NamePromptModal onClose={() => setShowNamePrompt(false)} />}
 
       <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-surface-border bg-surface/90 backdrop-blur-xl md:hidden">
         <button

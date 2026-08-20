@@ -8,6 +8,8 @@ create extension if not exists "pgcrypto";
 create table if not exists profiles (
   wallet_address text primary key,
   username text,
+  name text,
+  name_updated_at timestamptz,
   avatar_url text,
   bio text,
   created_at timestamptz not null default now()
@@ -15,6 +17,42 @@ create table if not exists profiles (
 
 alter table profiles drop constraint if exists profiles_bio_check;
 alter table profiles add constraint profiles_bio_check check (char_length(bio) <= 160);
+
+alter table profiles drop constraint if exists profiles_name_check;
+alter table profiles add constraint profiles_name_check check (char_length(name) <= 50);
+
+-- ganti nama cuma boleh sekali per 30 hari sejak perubahan terakhir
+-- (mengisi nama pertama kali dari null boleh kapan aja)
+create or replace function profiles_enforce_name_cooldown()
+returns trigger
+language plpgsql
+as $$
+begin
+  if TG_OP = 'INSERT' then
+    if NEW.name is not null then
+      NEW.name_updated_at := now();
+    end if;
+    return NEW;
+  end if;
+
+  if NEW.name is distinct from OLD.name then
+    if OLD.name is not null and OLD.name_updated_at is not null
+       and now() - OLD.name_updated_at < interval '30 days' then
+      raise exception 'name_cooldown_active' using errcode = 'P0001';
+    end if;
+    NEW.name_updated_at := now();
+  else
+    NEW.name_updated_at := OLD.name_updated_at;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_profiles_name_cooldown on profiles;
+create trigger trg_profiles_name_cooldown
+  before insert or update on profiles
+  for each row execute function profiles_enforce_name_cooldown();
 
 -- ---- tier_config (reference table for post/verification tiers) ----
 create table if not exists tier_config (
@@ -101,6 +139,18 @@ create table if not exists reposts (
 
 create index if not exists idx_reposts_post_id on reposts (post_id);
 create index if not exists idx_reposts_wallet on reposts (wallet_address);
+
+-- ---- likes ----
+create table if not exists likes (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references posts(id) on delete cascade,
+  wallet_address text not null,
+  created_at timestamptz not null default now(),
+  unique (post_id, wallet_address)
+);
+
+create index if not exists idx_likes_post_id on likes (post_id);
+create index if not exists idx_likes_wallet on likes (wallet_address);
 
 -- ---- messages (DMs + listing refs + marketplace offers + order updates) ----
 create table if not exists messages (
@@ -308,13 +358,14 @@ create table if not exists notifications (
 
 alter table notifications drop constraint if exists notifications_type_check;
 alter table notifications add constraint notifications_type_check
-  check (type in ('follow', 'repost', 'tip', 'order_reminder'));
+  check (type in ('follow', 'repost', 'like', 'tip', 'order_reminder'));
 
 alter table notifications drop constraint if exists notifications_payload_check;
 alter table notifications add constraint notifications_payload_check
   check (
     (type = 'follow' and post_id is null and amount is null and order_id is null)
     or (type = 'repost' and post_id is not null and amount is null and order_id is null)
+    or (type = 'like' and post_id is not null and amount is null and order_id is null)
     or (type = 'tip' and post_id is not null and amount is not null and order_id is null)
     or (type = 'order_reminder' and order_id is not null and amount is not null and body is not null)
   );
@@ -357,6 +408,12 @@ drop policy if exists "public read reposts" on reposts;
 create policy "public read reposts" on reposts for select using (true);
 drop policy if exists "public insert reposts" on reposts;
 drop policy if exists "public delete reposts" on reposts;
+
+alter table likes enable row level security;
+drop policy if exists "public read likes" on likes;
+create policy "public read likes" on likes for select using (true);
+drop policy if exists "public insert likes" on likes;
+drop policy if exists "public delete likes" on likes;
 
 alter table messages enable row level security;
 drop policy if exists "public read messages" on messages;
@@ -730,6 +787,47 @@ end;
 $$;
 
 
+create or replace function toggle_like(p_wallet text, p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author text;
+  v_now_liked boolean;
+begin
+  if p_wallet is null or length(p_wallet) = 0 then
+    raise exception 'wallet is required';
+  end if;
+
+  select author_wallet into v_author from posts where id = p_post_id;
+  if v_author is null then
+    raise exception 'post not found';
+  end if;
+
+  if exists (select 1 from likes where post_id = p_post_id and wallet_address = p_wallet) then
+    delete from likes where post_id = p_post_id and wallet_address = p_wallet;
+    delete from notifications
+      where actor_wallet = p_wallet and post_id = p_post_id and type = 'like';
+    v_now_liked := false;
+  else
+    insert into profiles (wallet_address) values (p_wallet) on conflict do nothing;
+    insert into likes (post_id, wallet_address) values (p_post_id, p_wallet);
+    -- unlike repost/tip, liking your own post is allowed (same as reference apps) —
+    -- just skip the notification since you don't need to be told you liked your own thing.
+    if v_author <> p_wallet then
+      insert into notifications (recipient_wallet, actor_wallet, type, post_id)
+        values (v_author, p_wallet, 'like', p_post_id);
+    end if;
+    v_now_liked := true;
+  end if;
+
+  return v_now_liked;
+end;
+$$;
+
+
 create or replace function send_tip(
   p_from text, p_to text, p_post_id uuid, p_amount numeric, p_tx_hash text default null
 )
@@ -892,6 +990,7 @@ create or replace function get_top_tipped(p_period text default 'all_time', p_li
 returns table (
   wallet_address text,
   username text,
+  name text,
   avatar_url text,
   verification_tier text,
   total_amount numeric
@@ -904,13 +1003,14 @@ as $$
   select
     t.to_wallet as wallet_address,
     p.username,
+    p.name,
     p.avatar_url,
     active_tier(t.to_wallet) as verification_tier,
     sum(t.amount) as total_amount
   from tips t
   left join profiles p on p.wallet_address = t.to_wallet
   where p_period = 'all_time' or t.created_at >= date_trunc('week', now() at time zone 'utc')
-  group by t.to_wallet, p.username, p.avatar_url
+  group by t.to_wallet, p.username, p.name, p.avatar_url
   order by total_amount desc
   limit greatest(p_limit, 1)
 $$;
@@ -922,6 +1022,7 @@ returns table (
   content text,
   author_wallet text,
   username text,
+  name text,
   avatar_url text,
   verification_tier text,
   total_amount numeric
@@ -936,6 +1037,7 @@ as $$
     p.content,
     p.author_wallet,
     prof.username,
+    prof.name,
     prof.avatar_url,
     active_tier(p.author_wallet) as verification_tier,
     sum(t.amount) as total_amount
@@ -943,7 +1045,7 @@ as $$
   join posts p on p.id = t.post_id
   left join profiles prof on prof.wallet_address = p.author_wallet
   where p_period = 'all_time' or t.created_at >= date_trunc('week', now() at time zone 'utc')
-  group by p.id, p.content, p.author_wallet, prof.username, prof.avatar_url
+  group by p.id, p.content, p.author_wallet, prof.username, prof.name, prof.avatar_url
   order by total_amount desc
   limit greatest(p_limit, 1)
 $$;
@@ -2274,6 +2376,7 @@ grant execute on function edit_post(text, uuid, text) to anon, authenticated;
 grant execute on function delete_post(text, uuid) to anon, authenticated;
 grant execute on function toggle_follow(text, text) to anon, authenticated;
 grant execute on function toggle_repost(text, uuid) to anon, authenticated;
+grant execute on function toggle_like(text, uuid) to anon, authenticated;
 grant execute on function send_tip(text, text, uuid, numeric, text) to anon, authenticated;
 grant execute on function purchase_verification(text, text, text, numeric, text) to anon, authenticated;
 grant execute on function get_quest_board(text) to anon, authenticated;

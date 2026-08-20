@@ -3,6 +3,8 @@ import type { BillingInterval, VerificationTier } from './lib/verification'
 export interface Profile {
   wallet_address: string
   username: string | null
+  name: string | null
+  name_updated_at: string | null
   avatar_url: string | null
   bio: string | null
   created_at: string
@@ -37,9 +39,12 @@ export interface Post {
   listing_active: boolean
   tip_total?: number
   author_avatar_url?: string | null
+  author_name?: string | null
   repost_total?: number
   reposted_by_me?: boolean
   reposted_by_wallet?: string
+  like_total?: number
+  liked_by_me?: boolean
   author_verification_tier?: VerificationTier
   order_count?: number
   completed_order_count?: number
@@ -56,6 +61,13 @@ export interface Tip {
 }
 
 export interface Repost {
+  id: string
+  post_id: string
+  wallet_address: string
+  created_at: string
+}
+
+export interface Like {
   id: string
   post_id: string
   wallet_address: string
@@ -176,7 +188,7 @@ export interface Follow {
   created_at: string
 }
 
-export type NotificationType = 'follow' | 'repost' | 'tip' | 'order_reminder'
+export type NotificationType = 'follow' | 'repost' | 'like' | 'tip' | 'order_reminder'
 
 export interface AppNotification {
   id: string
@@ -216,6 +228,7 @@ export type TopTippedPeriod = 'weekly' | 'all_time'
 export interface TopTippedRow {
   wallet_address: string
   username: string | null
+  name: string | null
   avatar_url: string | null
   verification_tier: VerificationTier
   total_amount: number
@@ -226,6 +239,7 @@ export interface TopTippedPostRow {
   content: string
   author_wallet: string
   username: string | null
+  name: string | null
   avatar_url: string | null
   verification_tier: VerificationTier
   total_amount: number
