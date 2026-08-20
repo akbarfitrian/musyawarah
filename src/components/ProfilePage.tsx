@@ -9,14 +9,12 @@ import { useProviderReputation } from '../hooks/useReviews'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
-import { profilePath } from '../utils/routes'
 import { getNameChangeEligibility } from '../utils/nameCooldown'
-import { BriefcaseIcon, CameraIcon, ChevronLeftIcon, MessageIcon, PencilIcon } from './icons'
+import { CameraIcon, ChevronLeftIcon, MessageIcon, MoreIcon, PencilIcon } from './icons'
 import { Feed } from './Feed'
 import { FollowButton } from './FollowButton'
 import { VerifiedBadge } from './VerifiedBadge'
 import { RatingStars } from './RatingStars'
-import { CopyLinkButton } from './CopyLinkButton'
 
 const BIO_MAX_LEN = 160
 const NAME_MAX_LEN = 50
@@ -44,10 +42,9 @@ export function ProfilePage({
 
   const { posts, loading, error, refresh } = usePosts(targetWallet ?? undefined)
   const [profileTab, setProfileTab] = useState<'posts' | 'listings'>('posts')
-  const profilePosts =
-    profileTab === 'listings'
-      ? posts.filter((p) => p.is_listing && (isOwnProfile || p.listing_active))
-      : posts.filter((p) => !p.is_listing)
+  const regularPosts = posts.filter((p) => !p.is_listing)
+  const listingPosts = posts.filter((p) => p.is_listing && (isOwnProfile || p.listing_active))
+  const profilePosts = profileTab === 'listings' ? listingPosts : regularPosts
   const { profile: myProfile, updateProfile } = useProfile()
   const { tier: myVerificationTier } = useVerification()
   const { profile: viewedProfile, verificationTier: viewedVerificationTier, loading: viewedProfileLoading } =
@@ -63,15 +60,13 @@ export function ProfilePage({
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
 
-  const [editingBio, setEditingBio] = useState(false)
   const [bioDraft, setBioDraft] = useState('')
-  const [savingBio, setSavingBio] = useState(false)
-  const [bioError, setBioError] = useState<string | null>(null)
-
-  const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
-  const [savingName, setSavingName] = useState(false)
-  const [nameError, setNameError] = useState<string | null>(null)
+
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
 
   function refreshAll() {
     refresh()
@@ -103,49 +98,32 @@ export function ProfilePage({
     }
   }
 
-  function startEditName() {
-    if (!nameEligibility.canChange) return
+  function openEditProfile() {
     setNameDraft(profile?.name ?? '')
-    setNameError(null)
-    setEditingName(true)
+    setBioDraft(profile?.bio ?? '')
+    setProfileError(null)
+    setProfileMenuOpen(false)
+    setEditProfileOpen(true)
   }
 
-  async function saveName() {
-    setSavingName(true)
-    setNameError(null)
+  async function saveProfile() {
+    setSavingProfile(true)
+    setProfileError(null)
     try {
-      await updateProfile({ name: nameDraft.trim() || null })
-      setEditingName(false)
+      const fields: { name?: string | null; bio?: string | null } = { bio: bioDraft.trim() || null }
+      if (nameEligibility.canChange) fields.name = nameDraft.trim() || null
+      await updateProfile(fields)
+      setEditProfileOpen(false)
     } catch (e) {
       const message = (e as { message?: string } | null)?.message ?? ''
       if (message.includes('name_cooldown_active')) {
-        setNameError('You can only change your name once every 30 days.')
+        setProfileError('You can only change your name once every 30 days.')
       } else {
-        setNameError('Failed to save name. Try again.')
+        setProfileError('Failed to save changes. Try again.')
       }
       console.error(e)
     } finally {
-      setSavingName(false)
-    }
-  }
-
-  function startEditBio() {
-    setBioDraft(profile?.bio ?? '')
-    setBioError(null)
-    setEditingBio(true)
-  }
-
-  async function saveBio() {
-    setSavingBio(true)
-    setBioError(null)
-    try {
-      await updateProfile({ bio: bioDraft.trim() || null })
-      setEditingBio(false)
-    } catch (e) {
-      setBioError('Failed to save bio. Try again.')
-      console.error(e)
-    } finally {
-      setSavingBio(false)
+      setSavingProfile(false)
     }
   }
 
@@ -193,7 +171,41 @@ export function ProfilePage({
         </button>
       )}
 
-      <div className="flex items-start gap-4 rounded-2xl border border-surface-border bg-surface p-5 shadow-card">
+      <div className="relative flex items-start gap-4 rounded-2xl border border-surface-border bg-surface p-5 shadow-card">
+        {isOwnProfile && (
+          <div className="absolute right-3 top-3">
+            <button
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink"
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              aria-label="Profile options"
+              aria-haspopup="menu"
+              aria-expanded={profileMenuOpen}
+              title="Profile options"
+            >
+              <MoreIcon size={17} />
+            </button>
+            {profileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setProfileMenuOpen(false)} />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-30 mt-1 w-44 animate-scale-in overflow-hidden rounded-xl border border-surface-border bg-surface-soft py-1 shadow-card"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium text-ink transition-colors hover:bg-surface-hover"
+                    onClick={openEditProfile}
+                  >
+                    <PencilIcon size={14} />
+                    Edit profile
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="relative shrink-0">
           <div
             className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-2xl font-semibold text-white ring-2 ring-brand-violet/50 ring-offset-2 ring-offset-surface"
@@ -234,75 +246,15 @@ export function ProfilePage({
         </div>
 
         <div className="min-w-0 flex-1">
-          {isOwnProfile && editingName ? (
-            <div>
-              <input
-                type="text"
-                className="w-full rounded-xl border border-surface-border bg-base px-3 py-1.5 text-[16px] font-semibold text-ink placeholder:text-ink-faint placeholder:font-normal focus:border-brand-violet/60 focus:shadow-glow focus:outline-none"
-                value={nameDraft}
-                maxLength={NAME_MAX_LEN}
-                placeholder="Add your name"
-                onChange={(e) => setNameDraft(e.target.value)}
-                autoFocus
-              />
-              <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-xs tabular-nums text-ink-faint">{NAME_MAX_LEN - nameDraft.length}</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-full border border-surface-border px-3.5 py-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
-                    onClick={() => setEditingName(false)}
-                    disabled={savingName}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full bg-brand-gradient px-3.5 py-1.5 text-[13px] font-semibold text-accent-contrast shadow-glow transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60"
-                    onClick={saveName}
-                    disabled={savingName}
-                  >
-                    {savingName ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </div>
-              {nameError && <p className="mt-1 text-xs text-danger">{nameError}</p>}
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[16px] font-semibold text-ink">
-                {profile?.name || shortenAddress(targetWallet)}
-              </span>
-              <VerifiedBadge tier={verificationTier} size={15} />
-              {isOwnProfile && (
-                <button
-                  type="button"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
-                  onClick={startEditName}
-                  disabled={!nameEligibility.canChange}
-                  aria-label="Edit name"
-                  title={
-                    nameEligibility.canChange
-                      ? 'Edit name'
-                      : `You can change your name again in ${nameEligibility.daysRemaining} day${nameEligibility.daysRemaining === 1 ? '' : 's'}`
-                  }
-                >
-                  <PencilIcon size={12} />
-                </button>
-              )}
-              <CopyLinkButton path={profilePath(targetWallet)} label="Copy link to profile" className="h-7 w-7" />
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 pr-9">
+            <span className="truncate text-[16px] font-semibold text-ink">
+              {profile?.name || shortenAddress(targetWallet)}
+            </span>
+            <VerifiedBadge tier={verificationTier} size={15} />
+          </div>
 
-          {!editingName && profile?.name && (
+          {profile?.name && (
             <p className="m-0 truncate font-mono text-[13px] text-ink-muted">{shortenAddress(targetWallet)}</p>
-          )}
-
-          {isOwnProfile && !editingName && !nameEligibility.canChange && (
-            <p className="m-0 mt-0.5 text-[12px] text-ink-faint">
-              You can change your name again in {nameEligibility.daysRemaining} day
-              {nameEligibility.daysRemaining === 1 ? '' : 's'}.
-            </p>
           )}
 
           {reputation && reputation.review_count > 0 && (
@@ -315,66 +267,23 @@ export function ProfilePage({
             </span>
           )}
 
-          {isOwnProfile && editingBio ? (
-            <div className="mt-2">
-              <textarea
-                className="w-full resize-none rounded-xl border border-surface-border bg-base px-3 py-2 text-[14px] text-ink placeholder:text-ink-faint focus:border-brand-violet/60 focus:shadow-glow focus:outline-none"
-                value={bioDraft}
-                maxLength={BIO_MAX_LEN}
-                placeholder="Tell us a bit about yourself…"
-                onChange={(e) => setBioDraft(e.target.value)}
-                rows={2}
-                autoFocus
-              />
-              <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-xs tabular-nums text-ink-faint">{BIO_MAX_LEN - bioDraft.length}</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="rounded-full border border-surface-border px-3.5 py-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
-                    onClick={() => setEditingBio(false)}
-                    disabled={savingBio}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full bg-brand-gradient px-3.5 py-1.5 text-[13px] font-semibold text-accent-contrast shadow-glow transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60"
-                    onClick={saveBio}
-                    disabled={savingBio}
-                  >
-                    {savingBio ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </div>
-              {bioError && <p className="mt-1 text-xs text-danger">{bioError}</p>}
-            </div>
-          ) : (
-            <div className="mt-1 flex items-start gap-2">
-              <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[14px] text-ink-muted">
-                {viewedProfileLoading && !isOwnProfile
-                  ? 'Loading…'
-                  : profile?.bio
-                    ? linkify(profile.bio)
-                    : 'No bio yet.'}
-              </p>
-              {isOwnProfile && (
-                <button
-                  type="button"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink"
-                  onClick={startEditBio}
-                  aria-label="Edit bio"
-                >
-                  <PencilIcon size={13} />
-                </button>
-              )}
-            </div>
-          )}
+          <p className="mt-1 min-w-0 whitespace-pre-wrap break-words text-[14px] text-ink-muted">
+            {viewedProfileLoading && !isOwnProfile
+              ? 'Loading…'
+              : profile?.bio
+                ? linkify(profile.bio)
+                : 'No bio yet.'}
+          </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-border pt-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-muted">
               <span>
-                <span className="font-bold text-ink">{posts.length}</span> {posts.length === 1 ? 'post' : 'posts'}
+                <span className="font-bold text-ink">{regularPosts.length}</span>{' '}
+                {regularPosts.length === 1 ? 'post' : 'posts'}
+              </span>
+              <span>
+                <span className="font-bold text-ink">{listingPosts.length}</span>{' '}
+                {listingPosts.length === 1 ? 'listing' : 'listings'}
               </span>
               <span>
                 <span className="font-bold text-ink">{followerCount}</span> {followerCount === 1 ? 'follower' : 'followers'}
@@ -411,6 +320,71 @@ export function ProfilePage({
 
       {isOwnProfile && avatarError && <p className="mt-2 px-1 text-xs text-danger">{avatarError}</p>}
 
+      {editProfileOpen && (
+        <div
+          className="fixed inset-0 z-40 flex animate-fade-in items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm animate-scale-in rounded-2xl border border-surface-border bg-surface-soft p-5 shadow-card">
+            <h2 className="text-[16px] font-semibold text-ink">Edit profile</h2>
+
+            <div className="mt-4">
+              <label className="text-[12px] font-medium text-ink-muted">Name</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-surface-border bg-base px-3 py-1.5 text-[15px] text-ink placeholder:text-ink-faint focus:border-brand-violet/60 focus:shadow-glow focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                value={nameDraft}
+                maxLength={NAME_MAX_LEN}
+                placeholder="Add your name"
+                onChange={(e) => setNameDraft(e.target.value)}
+                disabled={!nameEligibility.canChange}
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-ink-faint">
+                {nameEligibility.canChange
+                  ? `${NAME_MAX_LEN - nameDraft.length} characters left`
+                  : `You can change your name again in ${nameEligibility.daysRemaining} day${nameEligibility.daysRemaining === 1 ? '' : 's'}.`}
+              </p>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-[12px] font-medium text-ink-muted">Bio</label>
+              <textarea
+                className="mt-1 w-full resize-none rounded-xl border border-surface-border bg-base px-3 py-2 text-[14px] text-ink placeholder:text-ink-faint focus:border-brand-violet/60 focus:shadow-glow focus:outline-none"
+                value={bioDraft}
+                maxLength={BIO_MAX_LEN}
+                placeholder="Tell us a bit about yourself…"
+                onChange={(e) => setBioDraft(e.target.value)}
+                rows={3}
+              />
+              <p className="mt-1 text-xs text-ink-faint">{BIO_MAX_LEN - bioDraft.length} characters left</p>
+            </div>
+
+            {profileError && <p className="mt-2 text-xs text-danger">{profileError}</p>}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-full border border-surface-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
+                onClick={() => setEditProfileOpen(false)}
+                disabled={savingProfile}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-brand-gradient px-4 py-2 text-sm font-semibold text-accent-contrast shadow-glow transition-transform duration-150 hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                onClick={saveProfile}
+                disabled={savingProfile}
+              >
+                {savingProfile ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 -mx-4">
         <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
           <button
@@ -424,12 +398,11 @@ export function ProfilePage({
           </button>
           <button
             type="button"
-            className={`flex items-center gap-1.5 px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
+            className={`px-3 pb-2.5 text-[14px] font-semibold transition-colors ${
               profileTab === 'listings' ? 'border-b-2 border-gold text-ink' : 'text-ink-muted hover:text-ink'
             }`}
             onClick={() => setProfileTab('listings')}
           >
-            <BriefcaseIcon size={14} />
             Listings
           </button>
         </div>

@@ -15,7 +15,7 @@ import { supabase } from '../supabaseClient'
 import { setListingActive } from '../hooks/usePosts'
 import { postPath } from '../utils/routes'
 import { PostOptionsMenu } from './PostOptionsMenu'
-import { TrashIcon, RepostIcon, PencilIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
+import { RepostIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
 
 export function PostCard({
   post,
@@ -218,19 +218,14 @@ export function PostCard({
             )}
             {post.edited_at && <span className="shrink-0 text-[12px] text-ink-faint">· edited</span>}
             <span className="ml-auto flex items-center gap-1">
-              <PostOptionsMenu path={postPath(post.id)} className="h-8 w-8" />
-              {canEdit && !isEditing && (
-                  <button
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-50"
-                    onClick={startEdit}
-                    disabled={deleting}
-                    aria-label="Edit post"
-                    title="Edit post"
-                  >
-                    <PencilIcon size={14} />
-                  </button>
-                )}
-                {isOwnPost && listingHasOrders ? (
+              <PostOptionsMenu
+                path={postPath(post.id)}
+                className="h-8 w-8"
+                onEdit={canEdit && !isEditing ? startEdit : undefined}
+                onDelete={isOwnPost && !listingHasOrders ? () => setConfirmingDelete(true) : undefined}
+                deleting={deleting}
+              />
+                {isOwnPost && listingHasOrders && (
                   <button
                     type="button"
                     className="flex h-8 items-center gap-1 rounded-full px-2.5 text-[12px] font-semibold text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50"
@@ -244,18 +239,6 @@ export function PostCard({
                   >
                     {togglingListing ? '…' : post.listing_active ? 'Deactivate' : 'Activate'}
                   </button>
-                ) : (
-                  isOwnPost && (
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                      onClick={() => setConfirmingDelete(true)}
-                      disabled={deleting}
-                      aria-label="Delete post"
-                      title="Delete post"
-                    >
-                      <TrashIcon size={15} />
-                    </button>
-                  )
                 )}
               </span>
           </div>
