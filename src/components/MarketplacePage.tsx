@@ -3,12 +3,15 @@ import { useWallet } from '../contexts/WalletContext'
 import { usePosts, setListingActive } from '../hooks/usePosts'
 import { useListings, type ListingSort } from '../hooks/useListings'
 import { useMyOrders } from '../hooks/useOrders'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
 import { Feed } from './Feed'
 import { LISTING_CATEGORIES, type ListingCategory } from '../config/listingCategories'
 import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { BriefcaseIcon, ChevronDownIcon, MessageIcon, TagIcon } from './icons'
 import type { Order, OrderStatus } from '../types'
+
+const MARKETPLACE_TABS = ['browse', 'listings', 'orders'] as const
 
 const SORT_LABEL: Record<ListingSort, string> = {
   newest: 'Newest',
@@ -315,6 +318,7 @@ export function MarketplacePage({
   onMessageProvider?: (walletAddress: string, postId?: string) => void
 }) {
   const { walletAddress: myWallet, isAutoConnecting, connecting, connect } = useWallet()
+  const swipeTabProps = useSwipeTabs(MARKETPLACE_TABS, tab, onChangeTab)
 
   const tabs = (
     <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
@@ -352,7 +356,7 @@ export function MarketplacePage({
   // Browse is public — no wallet needed to look at listings, only to message/order.
   if (tab === 'browse') {
     return (
-      <div className="-mx-4">
+      <div className="-mx-4" {...swipeTabProps}>
         {tabs}
         <BrowseTab onVisitProfile={onVisitProfile} onVisitPost={onVisitPost} onMessageProvider={onMessageProvider} />
       </div>
@@ -361,7 +365,7 @@ export function MarketplacePage({
 
   if (isAutoConnecting) {
     return (
-      <div className="-mx-4">
+      <div className="-mx-4" {...swipeTabProps}>
         {tabs}
         <div className="flex items-center justify-center py-16">
           <p className="text-sm text-ink-muted">Checking wallet…</p>
@@ -372,7 +376,7 @@ export function MarketplacePage({
 
   if (!myWallet) {
     return (
-      <div className="-mx-4">
+      <div className="-mx-4" {...swipeTabProps}>
         {tabs}
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <p className="text-sm text-ink-muted">Connect your wallet to see your listings & orders.</p>
@@ -389,7 +393,7 @@ export function MarketplacePage({
   }
 
   return (
-    <div className="-mx-4">
+    <div className="-mx-4" {...swipeTabProps}>
       {tabs}
       {tab === 'listings' ? (
         <ListingsTab myWallet={myWallet} onVisitPost={onVisitPost} />

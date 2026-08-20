@@ -7,6 +7,7 @@ import { useUserSearch } from '../hooks/useUserSearch'
 import { useTopTipped } from '../hooks/useTopTipped'
 import { useTopTippedPosts } from '../hooks/useTopTippedPosts'
 import { useClickOutside } from '../hooks/useClickOutside'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
 
 const PERIOD_TABS: { value: TopTippedPeriod; label: string }[] = [
   { value: 'weekly', label: 'This Week' },
@@ -19,6 +20,8 @@ const LEADERBOARD_TABS: { value: LeaderboardTab; label: string }[] = [
   { value: 'users', label: 'Users' },
   { value: 'trending', label: 'Trending' },
 ]
+
+const LEADERBOARD_TAB_VALUES = LEADERBOARD_TABS.map((t) => t.value) as readonly LeaderboardTab[]
 
 export function RightPanel({
   searchQuery,
@@ -44,6 +47,7 @@ export function RightPanel({
 
   const { rows: topUsers, loading: loadingUsers } = useTopTipped(period)
   const { rows: topPosts, loading: loadingPosts } = useTopTippedPosts(period)
+  const swipeTabProps = useSwipeTabs(LEADERBOARD_TAB_VALUES, leaderboardTab, setLeaderboardTab)
 
   const drawerRef = useRef<HTMLDivElement>(null)
   useClickOutside(drawerRef, () => onMobileClose?.(), mobileOpen)
@@ -183,7 +187,8 @@ export function RightPanel({
           ))}
         </div>
 
-        {leaderboardTab === 'users' ? (
+        <div {...swipeTabProps}>
+          {leaderboardTab === 'users' ? (
           loadingUsers ? (
             <p className="py-2 text-[13px] text-ink-muted">Loading…</p>
           ) : topUsers.length === 0 ? (
@@ -279,6 +284,7 @@ export function RightPanel({
             ))}
           </ul>
         )}
+        </div>
 
         {period === 'weekly' && (
           <p className="mt-3 border-t border-surface-border pt-2.5 text-[11px] text-ink-faint">

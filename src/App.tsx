@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { WalletProvider, useWallet } from './contexts/WalletContext'
 import { ProfileProvider } from './contexts/ProfileContext'
@@ -7,6 +7,7 @@ import { LISTING_CATEGORIES, type ListingCategory } from './config/listingCatego
 import { useConversations, sendListingRefMessage } from './hooks/useMessages'
 import { useNotifications } from './hooks/useNotifications'
 import { useRouter } from './hooks/useRouter'
+import { useEdgeSwipeOpen } from './hooks/useEdgeSwipeOpen'
 import { TREASURY_WALLET } from './hooks/useOrders'
 import {
   adminPath,
@@ -61,6 +62,11 @@ function AppShell() {
   const { route: rawRoute, navigate } = useRouter()
   const route = rawRoute.view === 'landing' ? { view: 'home' as const } : rawRoute
   const isTreasury = Boolean(walletAddress) && walletAddress === TREASURY_WALLET
+
+  const openNavDrawerFromSwipe = useCallback(() => {
+    if (window.innerWidth < 768) setNavDrawerOpen(true)
+  }, [])
+  useEdgeSwipeOpen(openNavDrawerFromSwipe, !navDrawerOpen)
 
   useEffect(() => {
     if (!walletAddress || profileLoading) return

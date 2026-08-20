@@ -6,6 +6,7 @@ import { useViewedProfile } from '../hooks/useViewedProfile'
 import { useFollow } from '../hooks/useFollow'
 import { useVerification } from '../hooks/useVerification'
 import { useProviderReputation } from '../hooks/useReviews'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
 import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
@@ -18,6 +19,7 @@ import { RatingStars } from './RatingStars'
 
 const BIO_MAX_LEN = 160
 const NAME_MAX_LEN = 50
+const PROFILE_TABS = ['posts', 'listings'] as const
 
 export function ProfilePage({
   walletAddress: visitedWallet,
@@ -102,6 +104,7 @@ export function ProfilePage({
     setNameDraft(profile?.name ?? '')
     setBioDraft(profile?.bio ?? '')
     setProfileError(null)
+    setAvatarError(null)
     setProfileMenuOpen(false)
     setEditProfileOpen(true)
   }
@@ -126,6 +129,8 @@ export function ProfilePage({
       setSavingProfile(false)
     }
   }
+
+  const swipeTabProps = useSwipeTabs(PROFILE_TABS, profileTab, setProfileTab)
 
   if (isAutoConnecting) {
     return (
@@ -171,7 +176,7 @@ export function ProfilePage({
         </button>
       )}
 
-      <div className="relative flex items-start gap-4 rounded-2xl border border-surface-border bg-surface p-5 shadow-card">
+      <div className="relative flex items-start gap-3 rounded-2xl border border-surface-border bg-surface p-4 shadow-card sm:gap-4 sm:p-5">
         {isOwnProfile && (
           <div className="absolute right-3 top-3">
             <button
@@ -208,7 +213,7 @@ export function ProfilePage({
         )}
         <div className="relative shrink-0">
           <div
-            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full text-2xl font-semibold text-white ring-2 ring-brand-violet/50 ring-offset-2 ring-offset-surface"
+            className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full text-xl font-semibold text-white ring-2 ring-brand-violet/50 ring-offset-2 ring-offset-surface sm:h-20 sm:w-20 sm:text-2xl"
             style={{ background: avatarColor(targetWallet) }}
           >
             {profile?.avatar_url ? (
@@ -216,38 +221,12 @@ export function ProfilePage({
             ) : (
               avatarInitial(targetWallet)
             )}
-            {uploadingAvatar && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 text-[11px] font-medium text-white">
-                Uploading…
-              </div>
-            )}
           </div>
-          {isOwnProfile && (
-            <>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface bg-brand-gradient text-accent-contrast shadow-glow transition-transform hover:scale-110 disabled:opacity-60"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                aria-label="Change profile photo"
-                title="Change profile photo"
-              >
-                <CameraIcon size={13} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="visually-hidden"
-                onChange={(e) => handleAvatarPicked(e.target.files?.[0])}
-              />
-            </>
-          )}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 pr-9">
-            <span className="truncate text-[16px] font-semibold text-ink">
+            <span className="truncate text-[15px] font-semibold text-ink sm:text-[16px]">
               {profile?.name || shortenAddress(targetWallet)}
             </span>
             <VerifiedBadge tier={verificationTier} size={15} />
@@ -267,7 +246,7 @@ export function ProfilePage({
             </span>
           )}
 
-          <p className="mt-1 min-w-0 whitespace-pre-wrap break-words text-[14px] text-ink-muted">
+          <p className="mt-1 min-w-0 whitespace-pre-wrap break-words text-[13px] text-ink-muted sm:text-[14px]">
             {viewedProfileLoading && !isOwnProfile
               ? 'Loading…'
               : profile?.bio
@@ -275,8 +254,8 @@ export function ProfilePage({
                 : 'No bio yet.'}
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-border pt-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-muted">
+          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-surface-border pt-3 sm:gap-x-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-muted sm:gap-x-3 sm:text-[13px]">
               <span>
                 <span className="font-bold text-ink">{regularPosts.length}</span>{' '}
                 {regularPosts.length === 1 ? 'post' : 'posts'}
@@ -318,8 +297,6 @@ export function ProfilePage({
         </div>
       </div>
 
-      {isOwnProfile && avatarError && <p className="mt-2 px-1 text-xs text-danger">{avatarError}</p>}
-
       {editProfileOpen && (
         <div
           className="fixed inset-0 z-40 flex animate-fade-in items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
@@ -328,6 +305,43 @@ export function ProfilePage({
         >
           <div className="w-full max-w-sm animate-scale-in rounded-2xl border border-surface-border bg-surface-soft p-5 shadow-card">
             <h2 className="text-[16px] font-semibold text-ink">Edit profile</h2>
+
+            <div className="mt-4 flex justify-center">
+              <div className="relative">
+                <div
+                  className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full text-3xl font-semibold text-white"
+                  style={{ background: targetWallet ? avatarColor(targetWallet) : undefined }}
+                >
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    targetWallet && avatarInitial(targetWallet)
+                  )}
+                  <button
+                    type="button"
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:opacity-100 disabled:opacity-100"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    aria-label="Change profile photo"
+                    title="Change profile photo"
+                  >
+                    {uploadingAvatar ? (
+                      <span className="text-[11px] font-medium">Uploading…</span>
+                    ) : (
+                      <CameraIcon size={22} />
+                    )}
+                  </button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="visually-hidden"
+                  onChange={(e) => handleAvatarPicked(e.target.files?.[0])}
+                />
+              </div>
+            </div>
+            {avatarError && <p className="mt-2 text-center text-xs text-danger">{avatarError}</p>}
 
             <div className="mt-4">
               <label className="text-[12px] font-medium text-ink-muted">Name</label>
@@ -385,7 +399,7 @@ export function ProfilePage({
         </div>
       )}
 
-      <div className="mt-4 -mx-4">
+      <div className="mt-4 -mx-4" {...swipeTabProps}>
         <div className="mx-4 mb-1 flex gap-1 border-b border-surface-border">
           <button
             type="button"

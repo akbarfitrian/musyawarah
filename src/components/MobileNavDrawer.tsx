@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { TouchEvent } from 'react'
 import { useWallet } from '../contexts/WalletContext'
 import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
@@ -76,6 +77,7 @@ export function MobileNavDrawer({
 
   const drawerRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
   useClickOutside(drawerRef, onClose, open)
   useClickOutside(headerRef, () => {
     setWalletMenuOpen(false)
@@ -110,6 +112,26 @@ export function MobileNavDrawer({
 
   function go(v: View) {
     onNavigate(v)
+    onClose()
+  }
+
+  function handleDrawerTouchStart(e: TouchEvent) {
+    const t = e.touches[0]
+    swipeStartRef.current = { x: t.clientX, y: t.clientY }
+  }
+
+  function handleDrawerTouchEnd(e: TouchEvent) {
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    if (!start) return
+
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+
+    const SWIPE_THRESHOLD = 60
+    if (dx > -SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return
+
     onClose()
   }
 
@@ -156,6 +178,8 @@ export function MobileNavDrawer({
         className={`absolute left-0 top-0 flex h-full w-[82%] max-w-[320px] flex-col gap-1 overflow-y-auto bg-base px-3 py-4 shadow-2xl transition-transform duration-200 ease-out ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
+        onTouchStart={handleDrawerTouchStart}
+        onTouchEnd={handleDrawerTouchEnd}
       >
         <div className="relative mb-2 flex items-center justify-between px-1" ref={headerRef}>
           {walletAddress ? (
