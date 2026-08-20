@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Enables an iOS-style "swipe from the left edge" gesture to open something
- * (typically a mobile nav drawer). Listens globally so it works no matter
- * which page the user is on.
+ * Swipe-right-anywhere gesture to open something (typically a mobile nav
+ * drawer). Listens globally so it works no matter which page the user is on
+ * or where on the screen the gesture starts.
  *
- * - Touch must start within `edgeWidth` px of the left screen edge.
  * - Must move right at least `threshold` px, more horizontally than vertically.
  * - Only fires when `enabled` is true (e.g. drawer currently closed, mobile viewport).
+ * - Areas that have their own horizontal swipe behavior (see useSwipeTabs)
+ *   call stopPropagation() on a recognized swipe, so this listener never
+ *   fires there — tab swipes take priority over opening the drawer.
  */
-export function useEdgeSwipeOpen(onOpen: () => void, enabled: boolean, edgeWidth = 24, threshold = 60) {
+export function useEdgeSwipeOpen(onOpen: () => void, enabled: boolean, threshold = 60) {
   const startRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -17,10 +19,6 @@ export function useEdgeSwipeOpen(onOpen: () => void, enabled: boolean, edgeWidth
 
     function onTouchStart(e: TouchEvent) {
       const t = e.touches[0]
-      if (t.clientX > edgeWidth) {
-        startRef.current = null
-        return
-      }
       startRef.current = { x: t.clientX, y: t.clientY }
     }
 
@@ -44,5 +42,6 @@ export function useEdgeSwipeOpen(onOpen: () => void, enabled: boolean, edgeWidth
       document.removeEventListener('touchstart', onTouchStart)
       document.removeEventListener('touchend', onTouchEnd)
     }
-  }, [enabled, onOpen, edgeWidth, threshold])
+  }, [enabled, onOpen, threshold])
 }
+

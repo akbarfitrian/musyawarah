@@ -36,6 +36,11 @@ export function useSwipeTabs<T extends string>(
 
     if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy)) return
 
+    // A horizontal swipe was recognized here — stop it from bubbling up so
+    // the global "swipe anywhere to open the nav drawer" listener doesn't
+    // also fire for the same gesture. Tab areas own their own swipes.
+    e.stopPropagation()
+
     const idx = tabs.indexOf(current)
     if (idx === -1) return
 
