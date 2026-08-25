@@ -101,19 +101,10 @@ export interface SphereIdentity {
   [key: string]: unknown
 }
 
-/**
- * Resolves the identity's canonical `wallet_address` — used everywhere as
- * the DB primary key (`profiles.wallet_address`) AND as the value that must
- * cryptographically verify against the wallet's signature in the
- * wallet-login flow. This MUST always be the raw chainPubkey/address, never
- * the display nametag — a signature can't be verified against a text handle
- * like "@yandi1", only against the actual secp256k1 pubkey. The "@handle"
- * shown in the UI is derived from this same wallet_address elsewhere, not
- * stored/used as a separate identifier.
- */
 export function identityToHandle(identity: SphereIdentity | null | undefined): string {
   if (!identity) return ''
-  return identity.chainPubkey ?? identity.address ?? (identity.nametag ? `@${identity.nametag}` : '')
+  if (identity.nametag) return `@${identity.nametag}`
+  return identity.chainPubkey ?? identity.address ?? ''
 }
 
 export function formatRecipient(handle: string): string {
