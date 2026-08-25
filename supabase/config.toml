@@ -1,0 +1,11 @@
+project_id = "axkfzqrtpbayqlnzpeow"
+
+# wallet-login is intentionally callable by unauthenticated (anon) users —
+# it's the pre-auth challenge/response endpoint that ISSUES the JWT. It does
+# its own security via signature verification + one-time nonce inside the
+# function body, so it doesn't need (and must not require) the platform's
+# JWT gateway check. Without this, Supabase rejects the request (including
+# the CORS preflight) before it ever reaches our code, which surfaces in the
+# browser as a misleading "no Access-Control-Allow-Origin header" error.
+[functions.wallet-login]
+verify_jwt = false
