@@ -10,6 +10,7 @@ import {
 import { ConnectClient, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect'
 import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser'
 import { supabase } from '../supabaseClient'
+import { loginWithWallet, logoutWallet } from '../lib/walletAuth'
 import {
   DEFAULT_UCT_DECIMALS,
   formatRecipient,
@@ -200,6 +201,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsWalletLocked(false)
     setAssets([])
     setTotalFiat(null)
+    logoutWallet()
   }, [])
 
   const refreshBalance = useCallback(async () => {
@@ -227,9 +229,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data: unknown) => {
       setIsWalletLocked(false)
-      setWalletAddress(identityToHandle(data as SphereIdentity))
+      const handle = identityToHandle(data as SphereIdentity)
+      setWalletAddress(handle)
       uctCoinRef.current = null
       refreshBalance()
+      if (handle) {
+        loginWithWallet(client, handle).catch((err) => {
+          console.error('[MUSYAWARAH] Gagal login ulang setelah ganti identity:', err)
+          setError('Gagal memverifikasi wallet baru. Coba connect ulang.')
+        })
+      }
     })
 
     const unsubIncoming = client.on('transfer:incoming', () => refreshBalance())
@@ -279,6 +288,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         unsubEventsRef.current = attachEvents(client)
         refreshBalance()
         recordWalletConnectQuest(handle)
+
+        // Login diam-diam, tanpa blocking UI. Kalau gagal (mis. migration
+        // belum di-push, atau wallet nolak sign), user masih bisa
+        // browse & baca — cuma aksi mutating (post/like/dst) akan gagal
+        // sampai berhasil login.
+        try {
+          await loginWithWallet(client, handle)
+        } catch (err) {
+          console.warn('[MUSYAWARAH] Auto-login wallet gagal (baca-saja untuk sekarang):', err)
+        }
       } catch {
       } finally {
         if (!cancelled) setIsAutoConnecting(false)
@@ -361,6 +380,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       unsubEventsRef.current = attachEvents(client)
       refreshBalance()
       recordWalletConnectQuest(handle)
+
+      // Wallet baru saja connect, minta tanda tangan sekali supaya semua
+      // RPC mutating (post/like/follow/tip/dst) langsung bisa dipakai. Ini
+      // akan memicu popup approval KEDUA di wallet (setelah popup connect).
+      try {
+        await loginWithWallet(client, handle)
+      } catch (err) {
+        console.error('[MUSYAWARAH] Login wallet gagal:', err)
+        setError(
+          'Wallet berhasil connect, tapi verifikasi tanda tangan gagal — beberapa aksi ' +
+          '(posting, like, dll) belum bisa dipakai. Coba connect ulang.'
+        )
+      }
     } catch (err) {
       console.error('[MUSYAWARAH] Gagal connect ke Sphere wallet:', err)
       const message = err instanceof Error ? err.message : 'Failed to connect wallet. Try again.'
