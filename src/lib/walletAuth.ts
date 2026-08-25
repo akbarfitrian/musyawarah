@@ -59,6 +59,8 @@ export async function loginWithWallet(
     message: nonce,
   })) as { signature?: string; pubkey?: string } | undefined
 
+  console.log('intent result:', JSON.stringify(intentResult))
+
   const signature = intentResult?.signature
   if (!signature) {
     throw new Error('Wallet did not return a signature (user likely rejected the request).')
