@@ -389,8 +389,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('[MUSYAWARAH] Login wallet gagal:', err)
         setError(
-          'Wallet berhasil connect, tapi verifikasi tanda tangan gagal — beberapa aksi ' +
-          '(posting, like, dll) belum bisa dipakai. Coba connect ulang.'
+          'Wallet connected successfully, but signature verification failed — some actions ' +
+            '(posting, liking, etc.) are not yet available. Try reconnecting.'
         )
       }
     } catch (err) {
