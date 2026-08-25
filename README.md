@@ -2,7 +2,7 @@
 
 A decentralized social platform built on wallet-based identity, implemented on top of the **Sphere Wallet** and the **Unicity network**. Musyawarah takes its name from *musyawarah*, the Indonesian tradition of deliberation and consensus, and applies it to open, transparent, community-driven discussion and peer-to-peer hiring.
 
-> **Status**: v2.4.1, running against Sphere's `testnet2` network. See [`CHANGELOG.md`](./CHANGELOG.md) for release history.
+> **Status**: v2.5.1, running against Sphere's `testnet2` network. See [`CHANGELOG.md`](./CHANGELOG.md) for release history.
 
 ---
 
@@ -26,16 +26,20 @@ Local development requires Sphere itself running (or reachable) so it can load `
 - **Wallet authentication** via Sphere, described above
 - **Create and browse posts**, with image attachments gated by verification tier
 - **Tipping** in UCT, sent directly wallet-to-wallet
-- **Repost** with notifications
-- **Subscription-based verification** (Free, Verified, Verified Pro, Verified Max), billed monthly or yearly in UCT — see **Verification Tiers**
+- **Likes and reposts**, both with notifications
+- **Display names**, separate from the wallet-derived @handle — required the first time a wallet connects (via a one-time prompt) and changeable once every 30 days, enforced server-side
+- **Subscription-based verification** (Free, Verified, Verified Pro, Verified Max), billed monthly or yearly in UCT, with a dedicated pricing/upgrade page (`/verify`) showing live post quota and expiry countdown — see **Verification Tiers**
 - **Private messaging** between wallets, including negotiation cards and offers — see **Marketplace** — with sender-side deletion (soft delete, text messages only; leaves a "Message deleted" placeholder rather than erasing the row)
-- **Real-time notifications** for follows, reposts, and tips
+- **Real-time notifications** for follows, likes, reposts, and tips
 - **Quests and achievements**, a 10-step sequential quest line worth 14 points
 - **Top Tipped leaderboard**, ranking both users and individual posts, weekly or all-time
-- **User search and profiles**, with bio, avatar, follower/following counts, and provider rating
+- **User search and profiles**, with bio, avatar, display name, follower/following counts, and provider rating
 - **Shareable URLs** for profiles, posts, and DM threads (`#/profile/…`, `#/post/…`, `#/messages/…`), with working browser back/forward
 - **Marketplace**, where any post can double as a skill or agent-for-hire listing — see **Marketplace**
+- **Admin dashboard** for the treasury operator — payouts, refunds, and a CSV-exportable audit log — see **Admin Dashboard**
+- **In-app Help Center**, an FAQ organized by topic, reachable from Settings
 - **Light and dark mode**, monochrome black-and-white design system
+- **Mobile gestures** — swipe from the left edge to open the nav drawer, swipe between tabs on Profile, Marketplace, and the Top Tipped panel
 - **Monetization** through on-chain tipping, tiered subscriptions, and marketplace transactions
 
 ---
@@ -58,13 +62,13 @@ Any post can be published as a listing (title, category, price, and price mode �
 
    Separately, if the provider never delivers at all, the order is auto-flagged `disputed` **24 hours** after lock (`dispute_reason: 'seller_no_delivery_24h'`). The provider can still answer with `submit_deliverable_revision` at any point while `disputed`. If they don't, **24 hours after that** (48 hours after lock in total) the order is auto-flagged refund-eligible (`refund_flagged_at`), and an operator can then call `mark_order_refunded` — refusing to run unless that flag is set — to record the refund once they've sent the escrowed funds back to the buyer.
 
-   The treasury operator releases payout to the provider (`mark_order_released`) from the Admin page once an order is `completed`, or refunds the buyer (`mark_order_refunded`) once a non-delivery dispute has sat unanswered long enough to be flagged.
+   The treasury operator releases payout to the provider (`mark_order_released`) from the Admin dashboard once an order is `completed`, or refunds the buyer (`mark_order_refunded`) once a non-delivery dispute has sat unanswered long enough to be flagged. Both actions now require proof of payment: the dashboard sends the actual on-chain transfer first (the same `sendTip` flow used for tips), then submits the resulting transaction hash to the RPC — a call with a blank hash is rejected, and a hash already used to release or refund a *different* order is rejected too, so one on-chain transfer can never be stretched to close out two orders.
 7. **Cancel** — either party can cancel an order while it is still `pending`, before anything is locked. Once locked, resolving a problem goes through the dispute flow above rather than a one-sided cancel.
 8. **Review** — once an order is `released`, either party can leave a star rating and comment, aggregated into a reputation badge on the provider's profile. A "Rate now" prompt can be dismissed per-order in the UI (stored in `localStorage`, not the database) and recalled later — dismissing it never affects whether the order can still be reviewed.
 
 Order status (`pending → locking → locked → completed → released`, with `locking → pending` as a self-healing detour if the on-chain transfer fails or times out, `locked ⇄ disputed` as a possible detour before `completed`, `disputed → refunded` if a non-delivery dispute goes unanswered long enough, or `cancelled` from `pending`) renders as a status chip inline in the DM thread, with the relevant action attached — including a pulsing "Locking escrow…" chip while the on-chain transfer is in flight. A dedicated Marketplace page (`/marketplace`) provides two tabs: My Listings and My Orders.
 
-Escrow is custodial, not trustless. The treasury wallet (the same wallet used for verification payments, `VITE_VERIFICATION_TREASURY_WALLET`) is the counterparty for lock and release. Release is only ever performed from the Admin page by that wallet.
+Escrow is custodial, not trustless. The treasury wallet (the same wallet used for verification payments, `VITE_VERIFICATION_TREASURY_WALLET`) is the counterparty for lock and release. Release is only ever performed from the Admin dashboard by that wallet.
 
 ### Marketplace automation (scheduled, not user-triggered)
 
@@ -80,6 +84,18 @@ Six functions run on a schedule rather than in response to a click, and are deli
 | `auto_complete_unconfirmed_orders` | 72h after delivery, buyer never confirmed | Order → `completed` (`completion_reason: buyer_no_confirm_72h`) |
 
 These run via `pg_cron` if that extension is enabled on the Supabase project (checked automatically by the migrations that create them); otherwise they need to be triggered by an external scheduler (e.g. a GitHub Actions cron job) calling them through the Supabase REST RPC endpoint with the service role key. Without either, the functions exist and can be tested manually from the SQL Editor, but nothing runs automatically.
+
+---
+
+## Admin Dashboard
+
+Reachable only by the treasury/operator wallet (`TREASURY_WALLET`, sourced from `VITE_VERIFICATION_TREASURY_WALLET`) — any other wallet sees a "this page can only be accessed by the treasury/operator wallet" message instead. Three tabs, all under `src/components/admin/`:
+
+- **Payouts** (`PayoutsTab.tsx`) — completed orders waiting for release, with a one-click "Release" that sends the on-chain payout and records its transaction hash in the same action.
+- **Refunds** (`RefundsTab.tsx`) — disputed, non-delivery orders that have been auto-flagged refund-eligible, with the equivalent one-click "Refund".
+- **Audit Log** (`AuditLogTab.tsx`) — a paginated (10 rows per page) history of every release and refund on the platform, each row showing the order, action, transaction hash, and amount, with a "Download CSV" button for the full unpaginated history.
+
+The header also shows the treasury wallet's live UCT balance and a running count of pending payouts and refunds.
 
 ---
 
@@ -167,6 +183,7 @@ npm run build   # runs `tsc -b` then `vite build`; both pages land in one dist/
 ├── app/index.html              # dApp entry point, served at "/app/"
 ├── src/
 │   ├── components/             # UI components (pages and reusable widgets)
+│   │   └── admin/               # Payouts / Refunds / Audit Log tabs — see Admin Dashboard
 │   ├── config/                 # static config (listing categories, ...)
 │   ├── contexts/               # WalletContext, ProfileContext, ThemeContext
 │   ├── hooks/                  # data hooks (posts, messages, notifications,
@@ -199,8 +216,8 @@ Every write goes through Supabase RPC functions (`SECURITY DEFINER`):
 - `purchase_verification` — recomputes price from `TIER_CONFIG` server-side and rejects a `tx_hash` that has already been used
 - `award_quest`, `record_wallet_connect`, `get_quest_board` — quest progress bookkeeping
 - `get_top_tipped`, `get_top_tipped_posts` — leaderboard reads
-- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read`, `delete_message` — direct-message writes and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient and creates a `pending` row in `orders` with an automatic system message in the same thread. `propose_offer` rejects listings the provider has since deactivated — the client already hides the "Make offer" button/picker once a wallet's `useProviderListings` result is empty, but the RPC enforces it too since that client check can be bypassed. `delete_message` only soft-deletes the caller's own `kind = 'text'` messages — negotiation and order-status messages can't be deleted, since they double as transaction history.
-- `begin_escrow_lock`, `abort_escrow_lock`, `lock_escrow_order`, `confirm_order_complete`, `mark_order_released`, `cancel_order`, `mark_order_delivered`, `dispute_order`, `submit_deliverable_revision`, `mark_order_refunded` — the escrow lifecycle. `begin_escrow_lock` reserves an order (`pending` → `locking`) before the client attempts the on-chain transfer; `abort_escrow_lock` releases that reservation back to `pending` if the transfer fails, and only succeeds against an order the caller actually holds in `locking`. `mark_order_released` and `mark_order_refunded` are both validated server-side against the treasury wallet regardless of what the client claims; the Admin-page guard is a UX convenience, not the security boundary. `confirm_order_complete` requires `deliverable_url` to be set before a buyer can confirm. `dispute_order` is capped at one dispute per order via a permanent `dispute_used` flag, independent of `disputed_at`/`dispute_reason` which get cleared on each revision. `mark_order_refunded` additionally refuses to run until `refund_flagged_at` is set — an operator can't refund a non-delivery dispute before it's been flagged by the scheduled function below.
+- `send_message`, `propose_offer`, `accept_offer`, `decline_offer`, `mark_thread_read`, `delete_message` — direct-message writes and the buyer/provider negotiation flow. `accept_offer` can only be called by the offer's recipient and creates a `pending` row in `orders` with an automatic system message in the same thread. `propose_offer` rejects listings the provider has since deactivated — the client already hides the "Make offer" button/picker once a wallet's `useProviderListings` result is empty, but the RPC enforces it too since that client check can be bypassed. It also requires the listing being offered on to belong specifically to the message's *receiver*, not just either participant in the thread — this closes a bug where a listing owner, if their own listing had been shared back to them inside a chat, could propose an offer on it themselves and get the other party cast as "buyer" for a listing they never agreed to buy. `delete_message` only soft-deletes the caller's own `kind = 'text'` messages — negotiation and order-status messages can't be deleted, since they double as transaction history.
+- `begin_escrow_lock`, `abort_escrow_lock`, `lock_escrow_order`, `confirm_order_complete`, `mark_order_released`, `cancel_order`, `mark_order_delivered`, `dispute_order`, `submit_deliverable_revision`, `mark_order_refunded` — the escrow lifecycle. `begin_escrow_lock` reserves an order (`pending` → `locking`) before the client attempts the on-chain transfer; `abort_escrow_lock` releases that reservation back to `pending` if the transfer fails, and only succeeds against an order the caller actually holds in `locking`. `mark_order_released` and `mark_order_refunded` are both validated server-side against the treasury wallet regardless of what the client claims; the Admin-dashboard guard is a UX convenience, not the security boundary. Both also require an on-chain transaction hash as proof of payment — a call with a blank hash is rejected — and each hash is enforced unique across all orders via a database constraint, so the same on-chain transfer can never be reused to release or refund two different orders. `confirm_order_complete` requires `deliverable_url` to be set before a buyer can confirm. `dispute_order` is capped at one dispute per order via a permanent `dispute_used` flag, independent of `disputed_at`/`dispute_reason` which get cleared on each revision. `mark_order_refunded` additionally refuses to run until `refund_flagged_at` is set — an operator can't refund a non-delivery dispute before it's been flagged by the scheduled function below.
 - `auto_revert_stale_escrow_locks`, `auto_decline_expired_offers`, `send_escrow_confirmation_reminders`, `auto_dispute_non_delivery`, `auto_flag_refund_eligible_disputes`, `auto_complete_unconfirmed_orders` — scheduled housekeeping, not user-triggered. Revoked from `anon`/`authenticated` and granted to `service_role` only, since each call processes every eligible order/offer platform-wide rather than one caller's own data; see **Marketplace automation** above.
 - `submit_review`, `get_provider_reputation`, `set_listing_active` — reviews and listing management
 
