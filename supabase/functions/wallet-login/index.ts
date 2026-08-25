@@ -30,10 +30,21 @@ const JWT_SECRET = Deno.env.get("WALLET_JWT_SECRET")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// Browsers send a preflight OPTIONS request before the actual POST because
+// the client sends a JSON body cross-origin. Without these headers on both
+// the preflight response AND the real response, the browser blocks the
+// request client-side before it even reaches our code (hence "Failed to
+// fetch" with no useful server-side error).
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...CORS_HEADERS },
   });
 }
 
@@ -49,6 +60,13 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
 }
 
 Deno.serve(async (req) => {
+  // Preflight: browser asks "am I allowed to POST here from this origin
+  // with these headers?" before sending the real request. Must return 2xx
+  // with the CORS headers and no body.
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   if (req.method !== "POST") {
     return jsonResponse({ error: "method not allowed" }, 405);
   }
