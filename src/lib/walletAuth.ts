@@ -44,9 +44,13 @@ export async function loginWithWallet(
   walletAddress: string,
 ): Promise<WalletSession> {
   // 1. Get a fresh one-time nonce for this wallet (safe to call as anon).
+  //    p_domain is what shows up on the "Domain:" line of the message the
+  //    user signs — the server only mints a nonce for domains on its
+  //    allowlist (see request_wallet_nonce), so this can't be used to make
+  //    the server claim a domain it doesn't actually recognize.
   const { data: nonce, error: nonceErr } = await anonSupabase.rpc(
     'request_wallet_nonce',
-    { p_wallet: walletAddress },
+    { p_wallet: walletAddress, p_domain: window.location.host },
   )
   if (nonceErr || !nonce) {
     throw new Error(nonceErr?.message ?? 'failed to obtain login nonce')

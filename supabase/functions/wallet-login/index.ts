@@ -87,11 +87,39 @@ Deno.serve(async (req) => {
     );
   }
 
-  // The nonce must be exactly the one we handed out for this wallet, via
-  // request_wallet_nonce(). It also encodes the wallet address, so a nonce
-  // minted for wallet A can't be replayed against wallet B.
-  if (!nonce.startsWith(`musyawarah-login:${wallet_address}:`)) {
+  // The nonce is now a structured, human-readable message (see
+  // request_wallet_nonce in supabase/migrations/2026_08_25_siwe_style_nonce.sql),
+  // e.g.:
+  //   Sign in to Musyawarah
+  //
+  //   Domain: musyawarah.app
+  //   Address: DIRECT://<pubkey>
+  //   Nonce: <random>
+  //   Issued At: 2026-08-25T07:00:04.020Z
+  //   Expiration Time: 2026-08-25T07:10:04.020Z
+  //
+  // We don't re-validate the domain here — only a request from an allowed
+  // origin could have gotten request_wallet_nonce to mint a nonce claiming
+  // that domain in the first place (see the allowlist check there). What we
+  // DO need to check here: the Address line matches the wallet_address this
+  // request claims to authenticate as (so a signed nonce for wallet A can't
+  // be replayed as wallet B), and that the message's own declared
+  // expiration hasn't passed.
+  const addressMatch = nonce.match(/^Address:\s*DIRECT:\/\/([0-9a-fA-F]+)\s*$/m);
+  if (!addressMatch) {
+    return jsonResponse({ error: "malformed nonce: missing Address line" }, 400);
+  }
+  if (addressMatch[1].toLowerCase() !== wallet_address.toLowerCase()) {
     return jsonResponse({ error: "nonce does not match wallet_address" }, 400);
+  }
+
+  const expirationMatch = nonce.match(/^Expiration Time:\s*(\S+)\s*$/m);
+  if (!expirationMatch) {
+    return jsonResponse({ error: "malformed nonce: missing Expiration Time" }, 400);
+  }
+  const expiresAt = new Date(expirationMatch[1]);
+  if (Number.isNaN(expiresAt.getTime()) || Date.now() > expiresAt.getTime()) {
+    return jsonResponse({ error: "nonce expired" }, 401);
   }
 
   // 1. Verify the signature against the claimed pubkey. `wallet_address` here
