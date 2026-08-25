@@ -1,209 +1,520 @@
-export type SphereConnectionMode = 'iframe' | 'extension' | 'popup'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { ConnectClient, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect'
+import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser'
+import { supabase } from '../supabaseClient'
+import {
+  DEFAULT_UCT_DECIMALS,
+  formatRecipient,
+  getDappDescriptor,
+  identityToHandle,
+  isInIframe,
+  isValidHexCoinId,
+  openWalletPopup,
+  parseFiatTotal,
+  parseWalletAssets,
+  toBaseUnits,
+  waitForPopupReady,
+  WALLET_URL,
+  type SphereConnectionMode,
+  type SphereIdentity,
+  type WalletAsset,
+} from '../lib/sphereConnect'
 
-export const WALLET_URL =
-  (import.meta.env.VITE_SPHERE_WALLET_URL as string | undefined) || 'https://sphere.unicity.network'
-
-export const POPUP_WINDOW_NAME = 'sphere-connect-popup'
-
-export const POPUP_WINDOW_FEATURES = 'width=420,height=720,scrollbars=yes,resizable=yes'
-
-// Must match the wallet-side broadcast in the Sphere Connect protocol
-// (`sphere-connect:host-ready`) — the popup posts this once its ConnectHost
-// transport is actually listening, so we know it's safe to send the
-// handshake instead of racing a postMessage into a page that hasn't
-// finished loading yet.
-const HOST_READY_TYPE = 'sphere-connect:host-ready'
-const HOST_READY_TIMEOUT_MS = 30000
-const POPUP_CLOSE_POLL_MS = 500
-
-export function getDappDescriptor() {
-  return {
-    name: 'Musyawarah',
-    description: 'Social Web3 & Skill AI Agent Marketplace with Escrow Trusted',
-    url: typeof window !== 'undefined' ? window.location.origin : '',
-  }
-}
-
-export function isInIframe(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    return window.self !== window.top
-  } catch {
-    return true
-  }
-}
-
-export function hasExtension(): boolean {
-  if (typeof window === 'undefined') return false
-  return Boolean((window as unknown as { sphere?: unknown }).sphere)
-}
-
-/**
- * URL for the wallet's standalone connect popup — the ACTUAL browser
- * popup window (window.open), not the Sphere browser extension.
- */
-export function buildPopupConnectUrl(): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${WALLET_URL}/connect?origin=${encodeURIComponent(origin)}`
-}
-
-/**
- * Opens the Sphere wallet connect popup. Returns null if the browser
- * blocked it (pop-up blocker) so the caller can show a clear message
- * instead of silently hanging.
- */
-export function openWalletPopup(): Window | null {
-  if (typeof window === 'undefined') return null
-  return window.open(buildPopupConnectUrl(), POPUP_WINDOW_NAME, POPUP_WINDOW_FEATURES)
-}
-
-/**
- * Waits for the popup's ConnectHost to signal it's ready to receive the
- * handshake. Rejects early if the popup is closed before that happens,
- * instead of leaving the caller hanging until the connect timeout.
- */
-export function waitForPopupReady(popup: Window): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      cleanup()
-      reject(new Error('Wallet popup did not respond. Try Connect Wallet again.'))
-    }, HOST_READY_TIMEOUT_MS)
-
-    const closeCheck = setInterval(() => {
-      if (popup.closed) {
-        cleanup()
-        reject(new Error('Wallet popup was closed before it was ready to connect.'))
-      }
-    }, POPUP_CLOSE_POLL_MS)
-
-    function listener(event: MessageEvent) {
-      const data = event.data as { type?: unknown } | null
-      if (data && data.type === HOST_READY_TYPE) {
-        cleanup()
-        resolve()
-      }
-    }
-
-    function cleanup() {
-      clearTimeout(timer)
-      clearInterval(closeCheck)
-      window.removeEventListener('message', listener)
-    }
-
-    window.addEventListener('message', listener)
-  })
-}
-
-export interface SphereIdentity {
-  nametag?: string | null
-  chainPubkey?: string | null
-  address?: string | null
-  [key: string]: unknown
-}
-
-/**
- * Display-only label — prefers the human-readable nametag when the wallet
- * has one set. NEVER use this as the app's wallet identity: a nametag can't
- * be cryptographically proven via signMessage/verifySignedMessage, only the
- * raw chainPubkey can. Using this for wallet_address is what caused
- * "signature does not match wallet_address" for any wallet with a nametag.
- */
-export function identityToHandle(identity: SphereIdentity | null | undefined): string {
-  if (!identity) return ''
-  if (identity.nametag) return `@${identity.nametag}`
-  return identity.chainPubkey ?? identity.address ?? ''
-}
-
-/**
- * The app's actual wallet identity — always the raw chainPubkey (falling
- * back to `address` if a given wallet impl doesn't expose one). This is
- * what must be used for `wallet_address` everywhere it's tied to the
- * sign-message login flow (request_wallet_nonce, wallet-login, and the
- * `walletAddress` stored in context/profiles), because that's the only
- * value verifySignedMessage can ever recover and match.
- */
-export function identityToPubkey(identity: SphereIdentity | null | undefined): string {
-  if (!identity) return ''
-  return identity.chainPubkey ?? identity.address ?? ''
-}
-
-export function formatRecipient(handle: string): string {
-  if (!handle) return handle
-  if (handle.startsWith('@') || handle.startsWith('DIRECT://')) return handle
-  return `DIRECT://${handle}`
-}
-
-export function toBaseUnits(amount: number | string, decimals: number): string {
-  const [wholeRaw, fracRaw = ''] = String(amount).trim().split('.')
-  const whole = wholeRaw.replace(/[^0-9]/g, '') || '0'
-  const frac = fracRaw.replace(/[^0-9]/g, '').slice(0, decimals).padEnd(decimals, '0')
-  const combined = `${whole}${frac}`.replace(/^0+(?=\d)/, '')
-  return BigInt(combined || '0').toString()
-}
-
-export const DEFAULT_UCT_DECIMALS = 6
-
-export function isValidHexCoinId(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-9a-f]+$/.test(value) && value.length % 2 === 0
-}
-
-export function fromBaseUnits(amountBase: string | number, decimals: number): string {
-  const raw = String(amountBase).replace(/[^0-9]/g, '') || '0'
-  if (decimals <= 0) return raw.replace(/^0+(?=\d)/, '')
-  const padded = raw.padStart(decimals + 1, '0')
-  const whole = padded.slice(0, padded.length - decimals).replace(/^0+(?=\d)/, '')
-  const frac = padded.slice(-decimals).replace(/0+$/, '')
-  return frac ? `${whole}.${frac}` : whole
-}
-
-export interface WalletAsset {
-  coinId?: string
-  symbol: string
-  name?: string
-  amountBase: string
+interface ResolvedCoin {
+  coinId: string
   decimals: number
-  valueUsd: number | null
 }
 
-export function parseWalletAssets(raw: unknown): WalletAsset[] {
-  const list = Array.isArray(raw) ? raw : (raw as { assets?: unknown } | null | undefined)?.assets
-  if (!Array.isArray(list)) return []
+interface WalletContextValue {
+  walletAddress: string | null
+  connecting: boolean
+  isAutoConnecting: boolean
+  isWalletLocked: boolean
+  connectionMode: SphereConnectionMode | null
+  error: string | null
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+  sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string; simulated: boolean; verified: boolean }>
+  findRecentPayment: (toWallet: string, amount: number, windowMs?: number) => Promise<{ txHash: string } | null>
+  assets: WalletAsset[]
+  totalFiat: number | null
+  balanceLoading: boolean
+  refreshBalance: () => Promise<void>
+}
 
-  return list.map((item): WalletAsset => {
-    const obj = (item ?? {}) as Record<string, unknown>
-    const symbol = String(obj.symbol ?? obj.ticker ?? obj.name ?? obj.coinId ?? '???').toUpperCase()
-    const decimals = typeof obj.decimals === 'number' ? obj.decimals : DEFAULT_UCT_DECIMALS
-    const amountBase = String(
-      obj.totalAmount ?? obj.confirmedAmount ?? obj.amount ?? obj.balance ?? obj.amountBase ?? '0'
-    )
-    const valueUsdRaw = obj.fiatValueUsd ?? obj.valueUsd ?? obj.fiatValue ?? obj.usdValue
-    return {
-      coinId: typeof obj.coinId === 'string' ? obj.coinId : undefined,
-      symbol,
-      name: typeof obj.name === 'string' ? obj.name : undefined,
-      amountBase,
-      decimals,
-      valueUsd: typeof valueUsdRaw === 'number' ? valueUsdRaw : null,
-    }
+const WalletContext = createContext<WalletContextValue | undefined>(undefined)
+
+interface HistoryEntryLike {
+  type?: string
+  amount?: string | number
+  timestamp?: number
+  transferId?: string
+  id?: string
+  recipientNametag?: string
+  recipientAddress?: string
+  recipientPubkey?: string
+}
+
+function normalizeHandle(value: string): string {
+  return value.replace(/^DIRECT:\/\//, '').replace(/^@/, '').toLowerCase().trim()
+}
+
+/**
+ * Finds the most recent outgoing ('SENT') entry in the wallet's own history
+ * that matches the recipient and amount we just tried to send. Used so we can
+ * record the SAME identifier the wallet's "Transaction History" UI shows,
+ * instead of guessing at the shape of the intent('send') response.
+ */
+function findMatchingSentHistoryEntry(
+  history: unknown,
+  opts: { toWallet: string; amountBase: string; sinceMs: number }
+): { transferId?: string; id?: string } | undefined {
+  if (!Array.isArray(history)) return undefined
+  const targetHandle = normalizeHandle(opts.toWallet)
+
+  const candidates = (history as HistoryEntryLike[]).filter((e) => {
+    if (e?.type !== 'SENT') return false
+    if (typeof e.timestamp === 'number' && e.timestamp < opts.sinceMs) return false
+    if (String(e.amount ?? '') !== opts.amountBase) return false
+    const nametag = e.recipientNametag ? normalizeHandle(e.recipientNametag) : ''
+    const address = e.recipientAddress ? normalizeHandle(e.recipientAddress) : ''
+    const pubkey = e.recipientPubkey ? normalizeHandle(e.recipientPubkey) : ''
+    return nametag === targetHandle || address === targetHandle || pubkey === targetHandle
   })
+
+  if (candidates.length === 0) return undefined
+
+  candidates.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
+  const best = candidates[0]
+  return { transferId: best.transferId, id: best.id }
 }
 
-export function parseFiatTotal(raw: unknown): number | null {
-  if (typeof raw === 'number') return raw
-  const obj = raw as Record<string, unknown> | null | undefined
-  const val = obj?.total ?? obj?.amount ?? obj?.value ?? obj?.usd
-  return typeof val === 'number' ? val : null
+async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
+  const findUct = (list: unknown): { coinId?: string; decimals?: number } | undefined => {
+    if (!Array.isArray(list)) return undefined
+    return list.find((item) => {
+      const symbol = String(
+        (item as Record<string, unknown>)?.symbol ??
+          (item as Record<string, unknown>)?.ticker ??
+          (item as Record<string, unknown>)?.name ??
+          ''
+      ).toUpperCase()
+      return symbol === 'UCT'
+    }) as { coinId?: string; decimals?: number } | undefined
+  }
+
+  try {
+    const assets = await client.query('sphere_getAssets')
+    const list = Array.isArray(assets) ? assets : (assets as { assets?: unknown })?.assets
+    const uct = findUct(list)
+    const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
+    if (isValidHexCoinId(coinId)) {
+      return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
+    }
+    if (typeof coinId === 'string') {
+      console.warn('[MUSYAWARAH] sphere_getAssets nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
+    }
+  } catch (err) {
+    console.warn('[MUSYAWARAH] sphere_getAssets gagal, coba sphere_getTokens buat cari UCT.', err)
+  }
+
+  try {
+    const tokens = await client.query('sphere_getTokens')
+    const list = Array.isArray(tokens) ? tokens : (tokens as { tokens?: unknown })?.tokens
+    const uct = findUct(list)
+    const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
+    if (isValidHexCoinId(coinId)) {
+      return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
+    }
+    if (typeof coinId === 'string') {
+      console.warn('[MUSYAWARAH] sphere_getTokens nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
+    }
+  } catch (err) {
+    console.warn('[MUSYAWARAH] sphere_getTokens juga gagal cari UCT.', err)
+  }
+
+  const override = import.meta.env.VITE_SPHERE_UCT_COIN_ID as string | undefined
+  if (isValidHexCoinId(override)) {
+    console.warn('[MUSYAWARAH] Nggak nemu coinId UCT dari wallet, pakai VITE_SPHERE_UCT_COIN_ID.')
+    return { coinId: override, decimals: DEFAULT_UCT_DECIMALS }
+  }
+
+  throw new Error(
+    override
+      ? 'VITE_SPHERE_UCT_COIN_ID di .env.local bukan hex lowercase genap panjangnya. Cek lagi nilainya.'
+      : 'Nggak bisa nemuin coinId token UCT dari wallet. Isi VITE_SPHERE_UCT_COIN_ID di .env.local dengan coinId hex UCT yang bener buat network ini, lalu deploy ulang.'
+  )
 }
 
-export function computeHoldingsTotalUsd(
-  holdings: WalletAsset[],
-  priceBySymbol: Map<string, number>
-): number {
-  return holdings.reduce((sum, h) => {
-    if (h.valueUsd) return sum + h.valueUsd
-    const price = priceBySymbol.get(h.symbol.toUpperCase())
-    if (!price) return sum
-    const amount = Number(fromBaseUnits(h.amountBase, h.decimals))
-    return sum + (Number.isFinite(amount) ? amount * price : 0)
-  }, 0)
+async function recordWalletConnectQuest(handle: string) {
+  if (!handle) return
+  try {
+    const { error } = await supabase.rpc('record_wallet_connect', { p_wallet: handle })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[MUSYAWARAH] Gagal mencatat quest connect wallet:', e)
+  }
+}
+
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
+  const [isAutoConnecting, setIsAutoConnecting] = useState(true)
+  const [isWalletLocked, setIsWalletLocked] = useState(false)
+  const [connectionMode, setConnectionMode] = useState<SphereConnectionMode | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [assets, setAssets] = useState<WalletAsset[]>([])
+  const [totalFiat, setTotalFiat] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+
+  const clientRef = useRef<ConnectClient | null>(null)
+  const transportRef = useRef<{ destroy?: () => void } | null>(null)
+  const uctCoinRef = useRef<ResolvedCoin | null>(null)
+  const unsubEventsRef = useRef<(() => void) | null>(null)
+  // Only set when connected via the standalone popup (window.open), not the
+  // iframe mode — this is the actual popup window we keep alive across the
+  // session so later intents (send, dll) can post into it.
+  const popupRef = useRef<Window | null>(null)
+
+  const resetLocalState = useCallback(() => {
+    unsubEventsRef.current?.()
+    unsubEventsRef.current = null
+    transportRef.current?.destroy?.()
+    transportRef.current = null
+    clientRef.current = null
+    uctCoinRef.current = null
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close()
+    }
+    popupRef.current = null
+    setWalletAddress(null)
+    setConnectionMode(null)
+    setIsWalletLocked(false)
+    setAssets([])
+    setTotalFiat(null)
+  }, [])
+
+  const refreshBalance = useCallback(async () => {
+    const client = clientRef.current
+    if (!client) return
+    setBalanceLoading(true)
+    try {
+      const [assetsRaw, fiatRaw] = await Promise.all([
+        client.query('sphere_getAssets'),
+        client.query('sphere_getFiatBalance').catch(() => null),
+      ])
+      setAssets(parseWalletAssets(assetsRaw))
+      setTotalFiat(parseFiatTotal(fiatRaw))
+    } catch (err) {
+      console.warn('[MUSYAWARAH] Gagal refresh saldo wallet:', err)
+    } finally {
+      setBalanceLoading(false)
+    }
+  }, [])
+
+  const attachEvents = useCallback((client: ConnectClient) => {
+    const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
+      setIsWalletLocked(true)
+    })
+
+    const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data: unknown) => {
+      setIsWalletLocked(false)
+      setWalletAddress(identityToHandle(data as SphereIdentity))
+      uctCoinRef.current = null
+      refreshBalance()
+    })
+
+    const unsubIncoming = client.on('transfer:incoming', () => refreshBalance())
+    const unsubConfirmed = client.on('transfer:confirmed', () => refreshBalance())
+
+    return () => {
+      unsubLocked()
+      unsubIdentity()
+      unsubIncoming()
+      unsubConfirmed()
+    }
+  }, [refreshBalance])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function silentConnect() {
+      // Silent auto-connect only makes sense inside the Sphere wallet's own
+      // iframe — outside of it, window.parent === window and nothing will
+      // ever answer, so this would just sit "Checking wallet…" for up to
+      // the full 30s connect timeout for no reason. Popup mode can't be
+      // silently auto-connected anyway (browsers block window.open()
+      // without a user gesture), so standalone visits skip straight to
+      // showing the interactive Connect Wallet button.
+      if (!isInIframe()) {
+        setIsAutoConnecting(false)
+        return
+      }
+
+      const dapp = getDappDescriptor()
+
+      try {
+        const transport = PostMessageTransport.forClient()
+        const client = new ConnectClient({
+          transport,
+          dapp,
+          network: SPHERE_NETWORKS.testnet2,
+          silent: true,
+        })
+        const result = await client.connect()
+        if (cancelled) return
+        clientRef.current = client
+        transportRef.current = transport
+        setConnectionMode('iframe')
+        const handle = identityToHandle(result.identity as SphereIdentity)
+        setWalletAddress(handle)
+        unsubEventsRef.current = attachEvents(client)
+        refreshBalance()
+        recordWalletConnectQuest(handle)
+      } catch {
+      } finally {
+        if (!cancelled) setIsAutoConnecting(false)
+      }
+    }
+
+    silentConnect()
+
+    return () => {
+      cancelled = true
+      unsubEventsRef.current?.()
+    }
+  }, [])
+
+  const connect = useCallback(async () => {
+    setConnecting(true)
+    setError(null)
+    const dapp = getDappDescriptor()
+
+    try {
+      let result: Awaited<ReturnType<ConnectClient['connect']>>
+      let client: ConnectClient
+      let transport: PostMessageTransport
+      let mode: SphereConnectionMode
+      let popup: Window | null = null
+
+      if (isInIframe()) {
+        // Embedded inside the Sphere wallet's own iframe — talk to window.parent.
+        transport = PostMessageTransport.forClient()
+        client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 })
+        mode = 'iframe'
+        result = await client.connect()
+      } else {
+        // Standalone tab: open a REAL browser popup window to the Sphere
+        // wallet and talk to it via postMessage — not the wallet's browser
+        // extension, that's a separate (unimplemented) transport.
+        popup = openWalletPopup()
+        if (!popup) {
+          throw new Error(
+            'Wallet popup was blocked by the browser. Allow pop-ups for this site, then try Connect Wallet again.'
+          )
+        }
+
+        await waitForPopupReady(popup)
+
+        transport = PostMessageTransport.forClient({ target: popup, targetOrigin: WALLET_URL })
+        client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 })
+        mode = 'popup'
+
+        // If the popup is closed before the handshake resolves, fail fast
+        // instead of waiting out the full connect timeout. Once we ARE
+        // connected, the same callback tears the session down cleanly if
+        // the user closes the popup later (it's the transport's only link
+        // to the wallet — dead the moment that window is gone).
+        let handshakeSettled = false
+        const popupClosedEarly = new Promise<never>((_, reject) => {
+          transport.onClose(() => {
+            if (handshakeSettled) {
+              if (clientRef.current === client) resetLocalState()
+            } else {
+              reject(new Error('Wallet popup was closed before the connection finished.'))
+            }
+          })
+        })
+
+        result = await Promise.race([client.connect(), popupClosedEarly])
+        handshakeSettled = true
+      }
+
+      clientRef.current = client
+      transportRef.current = transport
+      popupRef.current = popup
+      uctCoinRef.current = null
+      setConnectionMode(mode)
+      const handle = identityToHandle(result.identity as SphereIdentity)
+      setWalletAddress(handle)
+      setIsWalletLocked(false)
+
+      unsubEventsRef.current?.()
+      unsubEventsRef.current = attachEvents(client)
+      refreshBalance()
+      recordWalletConnectQuest(handle)
+    } catch (err) {
+      console.error('[MUSYAWARAH] Gagal connect ke Sphere wallet:', err)
+      const message = err instanceof Error ? err.message : 'Failed to connect wallet. Try again.'
+      setError(message)
+    } finally {
+      setConnecting(false)
+    }
+  }, [attachEvents, refreshBalance, resetLocalState])
+
+  const disconnect = useCallback(async () => {
+    try {
+      await clientRef.current?.disconnect()
+    } catch (err) {
+      console.warn('[MUSYAWARAH] Error pas disconnect (diabaikan):', err)
+    } finally {
+      resetLocalState()
+    }
+  }, [resetLocalState])
+
+  const findRecentPayment = useCallback(
+    async (toWallet: string, amount: number, windowMs = 15 * 60 * 1000) => {
+      const client = clientRef.current
+      if (!client) return null
+
+      try {
+        if (!uctCoinRef.current) {
+          uctCoinRef.current = await resolveUctCoin(client)
+        }
+        const { decimals } = uctCoinRef.current
+        const amountBase = toBaseUnits(amount, decimals)
+
+        const history = await client.query<unknown>('sphere_getHistory')
+        const match = findMatchingSentHistoryEntry(history, {
+          toWallet,
+          amountBase,
+          sinceMs: Date.now() - windowMs,
+        })
+        if (!match) return null
+        const identifier = match.transferId ?? match.id
+        return identifier ? { txHash: identifier } : null
+      } catch (err) {
+        console.warn('[MUSYAWARAH] findRecentPayment: gagal ngecek riwayat wallet:', err)
+        return null
+      }
+    },
+    []
+  )
+
+  const sendTip = useCallback(async (toWallet: string, amount: number) => {
+    const client = clientRef.current
+    if (!client || !walletAddress) throw new Error('Wallet not connected')
+
+    if (!uctCoinRef.current) {
+      uctCoinRef.current = await resolveUctCoin(client)
+    }
+    const { coinId, decimals } = uctCoinRef.current
+    const amountBase = toBaseUnits(amount, decimals)
+
+    // In popup mode the approval UI lives in that other window — bring it
+    // to the front so the user actually notices there's something to sign.
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.focus()
+    }
+
+    const result = (await client.intent('send', {
+      to: formatRecipient(toWallet),
+      amount: amountBase,
+      coinId,
+    })) as {
+      txHash?: string
+      hash?: string
+      tx?: { hash?: string; id?: string }
+      transferId?: string
+      transfer?: { id?: string; transferId?: string }
+      id?: string
+      tokenId?: string
+      token?: { id?: string }
+    }
+
+    // The intent response shape isn't formally documented by the wallet SDK,
+    // so this is a best-effort guess at where an identifier might live.
+    let identifier =
+      result?.txHash ??
+      result?.hash ??
+      result?.tx?.hash ??
+      result?.transferId ??
+      result?.transfer?.transferId ??
+      result?.transfer?.id ??
+      result?.tx?.id ??
+      result?.id ??
+      result?.tokenId ??
+      result?.token?.id ??
+      null
+
+    // Cross-check against the wallet's own transaction history and prefer
+    // whatever it reports there. This is what the "Transaction History" panel
+    // in the wallet itself displays (Transfer ID / Token ID), so recording
+    // the same value here means what we store for release/refund proof will
+    // actually match what a human can verify in the wallet UI.
+    let verified = Boolean(identifier)
+    try {
+      const history = await client.query<unknown>('sphere_getHistory')
+      const match = findMatchingSentHistoryEntry(history, {
+        toWallet,
+        amountBase,
+        sinceMs: Date.now() - 2 * 60 * 1000,
+      })
+      if (match) {
+        identifier = match.transferId ?? match.id ?? identifier
+        verified = true
+      }
+    } catch (err) {
+      console.warn(
+        '[MUSYAWARAH] sendTip: gagal cross-check ke sphere_getHistory (dilanjut pakai identifier dari intent result kalau ada):',
+        err
+      )
+    }
+
+    if (!identifier) {
+      throw new Error(
+        'Payment may have been sent, but the wallet did not return a verifiable transaction id. Check your wallet\u2019s transaction history before retrying — do not release/refund again without confirming.'
+      )
+    }
+
+    refreshBalance()
+    return { txHash: identifier, simulated: false, verified }
+  }, [walletAddress, refreshBalance])
+
+  return (
+    <WalletContext.Provider
+      value={{
+        walletAddress,
+        connecting,
+        isAutoConnecting,
+        isWalletLocked,
+        connectionMode,
+        error,
+        connect,
+        disconnect,
+        sendTip,
+        findRecentPayment,
+        assets,
+        totalFiat,
+        balanceLoading,
+        refreshBalance,
+      }}
+    >
+      {children}
+    </WalletContext.Provider>
+  )
+}
+
+export function useWallet() {
+  const ctx = useContext(WalletContext)
+  if (!ctx) throw new Error('useWallet must be used inside <WalletProvider>')
+  return ctx
 }
