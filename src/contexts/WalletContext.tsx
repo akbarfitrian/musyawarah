@@ -11,6 +11,8 @@ import { ConnectClient, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphe
 import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser'
 import { supabase } from '../supabaseClient'
 import { loginWithWallet, logoutWallet, WalletLoginError } from '../lib/walletAuth'
+import { fetchNametag, setCachedNametag } from '../lib/nametags'
+import { resolvePayableRecipient as resolveRecipientCore, resolvePeer } from '../lib/recipient'
 import {
   DEFAULT_UCT_DECIMALS,
   formatRecipient,
@@ -18,6 +20,7 @@ import {
   identityToHandle,
   isInIframe,
   isValidHexCoinId,
+  normalizeNametag,
   openWalletPopup,
   parseFiatTotal,
   parseWalletAssets,
@@ -80,10 +83,12 @@ function normalizeHandle(value: string): string {
  */
 function findMatchingSentHistoryEntry(
   history: unknown,
-  opts: { toWallet: string; amountBase: string; sinceMs: number }
+  opts: { targets: string[]; amountBase: string; sinceMs: number }
 ): { transferId?: string; id?: string } | undefined {
   if (!Array.isArray(history)) return undefined
-  const targetHandle = normalizeHandle(opts.toWallet)
+  // Penerima bisa tercatat di riwayat wallet sebagai nametag, alamat DIRECT,
+  // atau chainPubkey, jadi cocokkan ke salah satu dari semuanya.
+  const targets = new Set(opts.targets.map(normalizeHandle).filter(Boolean))
 
   const candidates = (history as HistoryEntryLike[]).filter((e) => {
     if (e?.type !== 'SENT') return false
@@ -92,7 +97,7 @@ function findMatchingSentHistoryEntry(
     const nametag = e.recipientNametag ? normalizeHandle(e.recipientNametag) : ''
     const address = e.recipientAddress ? normalizeHandle(e.recipientAddress) : ''
     const pubkey = e.recipientPubkey ? normalizeHandle(e.recipientPubkey) : ''
-    return nametag === targetHandle || address === targetHandle || pubkey === targetHandle
+    return [nametag, address, pubkey].some((v) => v !== '' && targets.has(v))
   })
 
   if (candidates.length === 0) return undefined
@@ -100,6 +105,38 @@ function findMatchingSentHistoryEntry(
   candidates.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
   const best = candidates[0]
   return { transferId: best.transferId, id: best.id }
+}
+
+const TREASURY_WALLET_ENV = (import.meta.env.VITE_VERIFICATION_TREASURY_WALLET as string | undefined) ?? ''
+const TREASURY_NAMETAG_ENV = (import.meta.env.VITE_VERIFICATION_TREASURY_NAMETAG as string | undefined) ?? ''
+
+function resolvePayableRecipient(client: ConnectClient, wallet: string) {
+  return resolveRecipientCore(client, wallet, {
+    fetchNametag,
+    treasuryWallet: TREASURY_WALLET_ENV,
+    treasuryNametag: TREASURY_NAMETAG_ENV,
+  })
+}
+
+/**
+ * Simpan Unicity ID wallet yang sedang login ke wallet_nametags (dipakai buat
+ * tampilan @id dan petunjuk tujuan bayar). Gagal tidak fatal.
+ */
+async function syncMyNametag(client: ConnectClient, wallet: string, identity: SphereIdentity) {
+  if (!wallet) return
+  try {
+    let tag = normalizeNametag(identity.nametag)
+    if (!tag) {
+      // Identity dari handshake kadang belum membawa nametag; tanya wallet.
+      const peer = await resolvePeer(client, wallet)
+      if (peer?.chainPubkey?.toLowerCase() === wallet) tag = normalizeNametag(peer.nametag)
+    }
+    const { data, error } = await supabase.rpc('set_my_nametag', { p_wallet: wallet, p_nametag: tag })
+    if (error) throw error
+    setCachedNametag(wallet, typeof data === 'string' ? data : null)
+  } catch (e) {
+    console.warn('[MUSYAWARAH] Gagal sinkron Unicity ID:', e)
+  }
 }
 
 async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
@@ -260,6 +297,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           }
           setSessionReady(true)
           setError(null)
+          void syncMyNametag(client, identityToHandle(identity), identity)
 
           if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
           const delay = Math.max(10_000, res.expiresAt - Date.now() - 5 * 60_000)
@@ -490,9 +528,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const { decimals } = uctCoinRef.current
         const amountBase = toBaseUnits(amount, decimals)
 
+        // Cek duplikat harus tetap jalan walau resolve gagal: minimal cocokkan ke wallet-nya.
+        const { matchKeys } = await resolvePayableRecipient(client, toWallet).catch(() => ({
+          matchKeys: [toWallet],
+        }))
+
         const history = await client.query<unknown>('sphere_getHistory')
         const match = findMatchingSentHistoryEntry(history, {
-          toWallet,
+          targets: [toWallet, ...matchKeys],
           amountBase,
           sinceMs: Date.now() - windowMs,
         })
@@ -517,6 +560,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const { coinId, decimals } = uctCoinRef.current
     const amountBase = toBaseUnits(amount, decimals)
 
+    // Tentukan tujuan yang valid (@nametag / DIRECT hasil resolve) SEBELUM
+    // minta persetujuan user. Gagal di sini = belum ada uang yang bergerak.
+    const recipient = await resolvePayableRecipient(client, toWallet)
+    console.info('[MUSYAWARAH] sendTip tujuan:', recipient.to)
+
     // In popup mode the approval UI lives in that other window — bring it
     // to the front so the user actually notices there's something to sign.
     if (popupRef.current && !popupRef.current.closed) {
@@ -524,7 +572,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     const result = (await client.intent('send', {
-      to: formatRecipient(toWallet),
+      to: formatRecipient(recipient.to),
       amount: amountBase,
       coinId,
     })) as {
@@ -562,7 +610,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const history = await client.query<unknown>('sphere_getHistory')
       const match = findMatchingSentHistoryEntry(history, {
-        toWallet,
+        targets: [toWallet, ...recipient.matchKeys],
         amountBase,
         sinceMs: Date.now() - 2 * 60 * 1000,
       })

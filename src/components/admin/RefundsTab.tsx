@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useWallet } from '../../contexts/WalletContext'
 import { markOrderRefunded, type CompletedOrderRow } from '../../hooks/useOrders'
-import { shortenAddress } from '../../utils/avatar'
 import { timeAgo } from '../../utils/time'
-import { RefundIcon } from '../icons'
+import { RefundIcon } from '../icons'
+import { WalletHandle } from '../WalletHandle'
 
 export function RefundsTab({
   orders,
@@ -78,7 +78,7 @@ export function RefundsTab({
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-ink">{order.listing_title ?? 'Untitled listing'}</p>
                 <p className="truncate text-[12px] text-ink-muted">
-                  {shortenAddress(order.provider_wallet)} → {shortenAddress(order.buyer_wallet)} · {order.amount}{' '}
+                  <WalletHandle wallet={order.provider_wallet} /> → <WalletHandle wallet={order.buyer_wallet} /> · {order.amount}{' '}
                   {order.coin_symbol}
                 </p>
                 <p className="text-[11px] text-ink-faint">

@@ -7,9 +7,9 @@ import {
   useCompletedOrders,
   useRefundEligibleOrders,
 } from '../hooks/useOrders'
-import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
-import { ChevronLeftIcon, LockIcon, RefundIcon } from './icons'
+import { ChevronLeftIcon, LockIcon, RefundIcon } from './icons'
+import { WalletHandle } from './WalletHandle'
 
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const { walletAddress, sendTip } = useWallet()
@@ -109,7 +109,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-ink">{order.listing_title ?? 'Untitled listing'}</p>
                 <p className="truncate text-[12px] text-ink-muted">
-                  {shortenAddress(order.buyer_wallet)} → {shortenAddress(order.provider_wallet)} · {order.amount}{' '}
+                  <WalletHandle wallet={order.buyer_wallet} /> → <WalletHandle wallet={order.provider_wallet} /> · {order.amount}{' '}
                   {order.coin_symbol}
                 </p>
                 <p className="text-[11px] text-ink-faint">
@@ -157,7 +157,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-ink">{order.listing_title ?? 'Untitled listing'}</p>
                 <p className="truncate text-[12px] text-ink-muted">
-                  {shortenAddress(order.provider_wallet)} → {shortenAddress(order.buyer_wallet)} · {order.amount}{' '}
+                  <WalletHandle wallet={order.provider_wallet} /> → <WalletHandle wallet={order.buyer_wallet} /> · {order.amount}{' '}
                   {order.coin_symbol}
                 </p>
                 <p className="text-[11px] text-ink-faint">

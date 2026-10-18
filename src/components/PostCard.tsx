@@ -15,7 +15,8 @@ import { supabase } from '../supabaseClient'
 import { setListingActive } from '../hooks/usePosts'
 import { postPath } from '../utils/routes'
 import { PostOptionsMenu } from './PostOptionsMenu'
-import { RepostIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
+import { RepostIcon, XIcon, BriefcaseIcon, MessageIcon, CheckIcon } from './icons'
+import { WalletHandle } from './WalletHandle'
 
 export function PostCard({
   post,
@@ -155,7 +156,7 @@ export function PostCard({
           <RepostIcon size={13} />
           {post.reposted_by_wallet === walletAddress
             ? 'You reposted'
-            : `${shortenAddress(post.reposted_by_wallet)} reposted`}
+            : <><WalletHandle wallet={post.reposted_by_wallet} /> reposted</>}
         </button>
       )}
       <article className="group flex gap-3 pb-3 transition-colors">
@@ -191,7 +192,7 @@ export function PostCard({
                 className="truncate font-mono text-[14px] font-semibold text-ink hover:underline"
                 onClick={() => onVisitProfile?.(post.author_wallet)}
               >
-                {shortenAddress(post.author_wallet)}
+                <WalletHandle wallet={post.author_wallet} />
               </button>
             )}
             <VerifiedBadge tier={post.author_verification_tier} />
@@ -201,7 +202,7 @@ export function PostCard({
                 className="truncate font-mono text-[13px] text-ink-muted hover:underline"
                 onClick={() => onVisitProfile?.(post.author_wallet)}
               >
-                {shortenAddress(post.author_wallet)}
+                <WalletHandle wallet={post.author_wallet} />
               </button>
             )}
             <span className="shrink-0 text-ink-faint">·</span>

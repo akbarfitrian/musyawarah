@@ -6,10 +6,10 @@ import { useMyOrders } from '../hooks/useOrders'
 import { useSwipeTabs } from '../hooks/useSwipeTabs'
 import { Feed } from './Feed'
 import { LISTING_CATEGORIES, type ListingCategory } from '../config/listingCategories'
-import { shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { BriefcaseIcon, ChevronDownIcon, MessageIcon, TagIcon } from './icons'
-import type { Order, OrderStatus } from '../types'
+import type { Order, OrderStatus } from '../types'
+import { WalletHandle } from './WalletHandle'
 
 const MARKETPLACE_TABS = ['browse', 'listings', 'orders'] as const
 
@@ -246,7 +246,7 @@ function OrderRow({
         <div className="flex items-center gap-1.5 text-[13px]">
           <span className="font-semibold text-ink">{role}</span>
           <span className="text-ink-faint">·</span>
-          <span className="font-mono text-ink-muted">{shortenAddress(otherWallet)}</span>
+          <span className="font-mono text-ink-muted"><WalletHandle wallet={otherWallet} /></span>
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-[12px] text-ink-muted">
           <span className="font-mono font-semibold text-gold">

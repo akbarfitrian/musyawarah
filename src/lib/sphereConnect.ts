@@ -115,10 +115,38 @@ export function identityToHandle(identity: SphereIdentity | null | undefined): s
   return (identity.chainPubkey ?? identity.address ?? '').toLowerCase()
 }
 
+const CHAIN_PUBKEY_RE = /^0[23][0-9a-f]{64}$/i
+
+/** true kalau `value` adalah chainPubkey compressed secp256k1 (66 hex). */
+export function isChainPubkey(value: string | null | undefined): boolean {
+  return typeof value === 'string' && CHAIN_PUBKEY_RE.test(value.trim())
+}
+
+/**
+ * Normalisasi Unicity ID / nametag: buang `@` dan prefix `DIRECT://`, huruf
+ * kecil. Hasilnya "alice" (tanpa @). String kosong kalau input bukan nametag.
+ */
+export function normalizeNametag(value: string | null | undefined): string {
+  if (!value) return ''
+  const v = value.trim().replace(/^DIRECT:\/\//i, '').replace(/^@/, '').toLowerCase()
+  // Pubkey/hex panjang bukan nametag.
+  if (isChainPubkey(v) || /^[0-9a-f]{64}$/.test(v)) return ''
+  return /^[a-z0-9_-]{3,20}$/.test(v) ? v : ''
+}
+
+/**
+ * Bentuk `to` untuk intent('send') dari identifier yang SUDAH terverifikasi
+ * (lihat resolvePayableRecipient di WalletContext). JANGAN lagi membungkus
+ * chainPubkey jadi `DIRECT://<pubkey>`: alamat DIRECT itu hash yang diturunkan
+ * dari key (`DIRECT://0000be36...`), bukan pubkey mentah — SDK akan gagal
+ * dengan "Recipient ... has no published chain pubkey".
+ */
 export function formatRecipient(handle: string): string {
   if (!handle) return handle
-  if (handle.startsWith('@') || handle.startsWith('DIRECT://')) return handle
-  return `DIRECT://${handle}`
+  if (handle.startsWith('@') || /^DIRECT:\/\//i.test(handle)) return handle
+  if (isChainPubkey(handle)) return handle.toLowerCase()
+  const tag = normalizeNametag(handle)
+  return tag ? `@${tag}` : handle
 }
 
 export function toBaseUnits(amount: number | string, decimals: number): string {

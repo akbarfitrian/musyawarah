@@ -35,7 +35,8 @@ import {
   TrashIcon,
   XIcon,
 } from './icons'
-import { dismissReviewPrompt, isReviewPromptDismissed, undismissReviewPrompt } from '../utils/reviewDismissal'
+import { dismissReviewPrompt, isReviewPromptDismissed, undismissReviewPrompt } from '../utils/reviewDismissal'
+import { WalletHandle } from './WalletHandle'
 
 function ConversationRow({
   wallet,
@@ -93,7 +94,7 @@ function ConversationRow({
               onVisitProfile?.(wallet)
             }}
           >
-            {shortenAddress(wallet)}
+            <WalletHandle wallet={wallet} />
           </button>
           <VerifiedBadge tier={verificationTier} size={13} />
           <span className="text-ink-faint">·</span>
@@ -928,7 +929,7 @@ function ThreadView({
           className="truncate font-mono text-[15px] font-semibold text-ink hover:underline"
           onClick={() => onVisitProfile?.(otherWallet)}
         >
-          {shortenAddress(otherWallet)}
+          <WalletHandle wallet={otherWallet} />
         </button>
         <VerifiedBadge tier={otherVerificationTier} size={15} />
         <CopyLinkButton
@@ -945,7 +946,7 @@ function ThreadView({
           <p className="py-8 text-center text-[13px] text-danger">{error}</p>
         ) : messages.length === 0 ? (
           <p className="py-8 text-center text-[13px] text-ink-muted">
-            No messages yet. Say hi to {shortenAddress(otherWallet)}.
+            No messages yet. Say hi to <WalletHandle wallet={otherWallet} />.
           </p>
         ) : (
           messages.map((m) => {
