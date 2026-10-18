@@ -101,10 +101,18 @@ export interface SphereIdentity {
   [key: string]: unknown
 }
 
+/**
+ * The app-wide wallet identifier (what we store as `wallet_address`, send as
+ * `p_wallet`, and what the wallet-login JWT claims) is ALWAYS the wallet's
+ * chainPubkey. It must be the same value the signature is verified against,
+ * so assert_wallet_owner() can compare them directly. A nametag is only a
+ * display label — it is not cryptographically bound to the key by anything
+ * the backend can check — so it must never be used as an identity.
+ */
 export function identityToHandle(identity: SphereIdentity | null | undefined): string {
   if (!identity) return ''
-  if (identity.nametag) return `@${identity.nametag}`
-  return identity.chainPubkey ?? identity.address ?? ''
+  // Lowercase so one key can never become two identities by letter case.
+  return (identity.chainPubkey ?? identity.address ?? '').toLowerCase()
 }
 
 export function formatRecipient(handle: string): string {

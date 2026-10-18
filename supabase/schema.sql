@@ -1,5 +1,43 @@
 create extension if not exists "pgcrypto";
 
+-- ---- app_config + treasury lookup (same as migrations/2026_10_18_app_config_treasury.sql) ----
+create table if not exists app_config (
+  key text primary key,
+  value text not null default ''
+);
+
+-- Nobody reads or writes this table from the client. RLS on + no policies +
+-- no grants = only service_role / security-definer functions can touch it.
+alter table app_config enable row level security;
+revoke all on app_config from anon, authenticated;
+
+insert into app_config (key, value) values ('treasury_wallet', '')
+on conflict (key) do nothing;
+
+create or replace function app_treasury_wallet()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_wallet text;
+begin
+  select value into v_wallet from app_config where key = 'treasury_wallet';
+
+  if v_wallet is null or v_wallet !~ '^[0-9a-f]{66}$' then
+    raise exception
+      'treasury_wallet belum dikonfigurasi di app_config (harus chainPubkey hex 66 karakter, huruf kecil)'
+      using errcode = '22023';
+  end if;
+
+  return v_wallet;
+end;
+$$;
+
+revoke all on function app_treasury_wallet() from public, anon, authenticated;
+
 -- ============================================================================
 -- SECTION 1: TABLES
 -- ============================================================================
@@ -1421,7 +1459,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;
@@ -1833,7 +1871,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;
@@ -1893,7 +1931,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;

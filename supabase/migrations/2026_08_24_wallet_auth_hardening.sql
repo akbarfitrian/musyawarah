@@ -964,7 +964,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;
@@ -1377,9 +1377,9 @@ $$;
 -- caller to the treasury wallet by comparing p_operator_wallet to a hardcoded
 -- constant, but before this migration that comparison was still just a
 -- string check against a client-supplied parameter — anyone could pass
--- p_operator_wallet = '@masyarakat' directly with no proof they control that
+-- p_operator_wallet = <the treasury wallet> directly with no proof they control that
 -- wallet. assert_wallet_owner closes that: the JWT must actually have been
--- issued to a session that signed in AS @masyarakat.
+-- issued to a session that signed in AS the treasury wallet.
 create or replace function mark_order_released(
   p_order_id uuid,
   p_operator_wallet text,
@@ -1391,7 +1391,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;
@@ -1452,7 +1452,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_treasury_wallet constant text := '@masyarakat';
+  v_treasury_wallet text := app_treasury_wallet();
   v_order orders;
   v_buyer text;
   v_provider text;
