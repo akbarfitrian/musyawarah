@@ -7,7 +7,7 @@ import { useFollow } from '../hooks/useFollow'
 import { useVerification } from '../hooks/useVerification'
 import { useProviderReputation } from '../hooks/useReviews'
 import { useSwipeTabs } from '../hooks/useSwipeTabs'
-import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
+import { avatarColor, avatarInitial } from '../utils/avatar'
 import { linkify } from '../utils/linkify'
 import { uploadAvatar, validateAvatarFile } from '../lib/avatarUpload'
 import { getNameChangeEligibility } from '../utils/nameCooldown'
@@ -15,7 +15,8 @@ import { CameraIcon, ChevronLeftIcon, MessageIcon, MoreIcon, PencilIcon } from '
 import { Feed } from './Feed'
 import { FollowButton } from './FollowButton'
 import { VerifiedBadge } from './VerifiedBadge'
-import { RatingStars } from './RatingStars'
+import { RatingStars } from './RatingStars'
+import { WalletHandle } from './WalletHandle'
 
 const BIO_MAX_LEN = 160
 const NAME_MAX_LEN = 50
@@ -227,13 +228,13 @@ export function ProfilePage({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 pr-9">
             <span className="truncate text-[15px] font-semibold text-ink sm:text-[16px]">
-              {profile?.name || shortenAddress(targetWallet)}
+              {profile?.name || <WalletHandle wallet={targetWallet} />}
             </span>
             <VerifiedBadge tier={verificationTier} size={15} />
           </div>
 
           {profile?.name && (
-            <p className="m-0 truncate font-mono text-[13px] text-ink-muted">{shortenAddress(targetWallet)}</p>
+            <p className="m-0 truncate font-mono text-[13px] text-ink-muted"><WalletHandle wallet={targetWallet} /></p>
           )}
 
           {reputation && reputation.review_count > 0 && (

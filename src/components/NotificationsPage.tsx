@@ -5,7 +5,8 @@ import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
 import { timeAgo } from '../utils/time'
 import { VerifiedBadge } from './VerifiedBadge'
 import { BellIcon, CoinIcon, HeartIcon, LockIcon, RepostIcon, UserPlusIcon } from './icons'
-import type { AppNotification } from '../types'
+import type { AppNotification } from '../types'
+import { WalletHandle } from './WalletHandle'
 
 function NotificationTypeIcon({ type }: { type: AppNotification['type'] }) {
   if (type === 'follow') {
@@ -106,7 +107,7 @@ function NotificationRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1">
           <span className={`truncate font-mono text-[14px] text-ink ${notification.read ? 'font-semibold' : 'font-bold'}`}>
-            {shortenAddress(wallet)}
+            <WalletHandle wallet={wallet} />
           </span>
           <VerifiedBadge tier={notification.actor_verification_tier} size={13} />
           <span className="text-[14px] text-ink-muted">{actionText}</span>

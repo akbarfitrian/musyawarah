@@ -3,10 +3,11 @@ import { useWallet } from '../contexts/WalletContext'
 import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
 import { useClickOutside } from '../hooks/useClickOutside'
-import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
+import { avatarColor, avatarInitial } from '../utils/avatar'
 import { ChevronDownIcon, LogoutIcon, RefreshIcon } from './icons'
 import { VerifiedBadge } from './VerifiedBadge'
-import { fromBaseUnits, type SphereConnectionMode, type WalletAsset } from '../lib/sphereConnect'
+import { fromBaseUnits, type SphereConnectionMode, type WalletAsset } from '../lib/sphereConnect'
+import { WalletHandle } from './WalletHandle'
 
 const MODE_LABEL: Record<SphereConnectionMode, string> = {
   iframe: 'via Sphere',
@@ -108,7 +109,7 @@ export function ConnectWallet() {
         </div>
         <div className="hidden min-w-0 flex-1 flex-col items-start lg:flex">
           <span className="flex min-w-0 items-center gap-1 font-mono text-[13px] font-medium text-ink">
-            <span className="truncate">{shortenAddress(walletAddress)}</span>
+            <span className="truncate"><WalletHandle wallet={walletAddress} /></span>
             <VerifiedBadge tier={verificationTier} size={13} />
           </span>
           {isWalletLocked ? (

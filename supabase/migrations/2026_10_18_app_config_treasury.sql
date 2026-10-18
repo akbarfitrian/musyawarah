@@ -44,7 +44,7 @@ as $$
 declare
   v_wallet text;
 begin
-  select value into v_wallet from app_config where key = '03cf9fd4f29e2bf37d1e7db251d7e0bbda446b5e2db0d17a2e58aefeb81ed4d60a';
+  select value into v_wallet from app_config where key = 'treasury_wallet';
 
   if v_wallet is null or v_wallet !~ '^[0-9a-f]{66}$' then
     raise exception

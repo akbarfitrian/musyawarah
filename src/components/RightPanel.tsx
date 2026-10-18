@@ -7,7 +7,8 @@ import { useUserSearch } from '../hooks/useUserSearch'
 import { useTopTipped } from '../hooks/useTopTipped'
 import { useTopTippedPosts } from '../hooks/useTopTippedPosts'
 import { useClickOutside } from '../hooks/useClickOutside'
-import { useSwipeTabs } from '../hooks/useSwipeTabs'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
+import { WalletHandle } from './WalletHandle'
 
 const PERIOD_TABS: { value: TopTippedPeriod; label: string }[] = [
   { value: 'weekly', label: 'This Week' },
@@ -124,13 +125,13 @@ export function RightPanel({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1">
                           <span className="truncate text-[14px] font-semibold text-ink">
-                            {u.name || shortenAddress(u.wallet_address)}
+                            {u.name || <WalletHandle wallet={u.wallet_address} />}
                           </span>
                           <VerifiedBadge tier={u.verification_tier} size={13} />
                         </div>
                         {u.name && (
                           <span className="truncate font-mono text-[12px] text-ink-muted">
-                            {shortenAddress(u.wallet_address)}
+                            <WalletHandle wallet={u.wallet_address} />
                           </span>
                         )}
                       </div>
@@ -224,7 +225,7 @@ export function RightPanel({
                       onClick={() => onVisitProfile?.(row.wallet_address)}
                     >
                       <span className="truncate font-mono text-[13px] font-semibold text-ink">
-                        {row.name || shortenAddress(row.wallet_address)}
+                        {row.name || <WalletHandle wallet={row.wallet_address} />}
                       </span>
                       <VerifiedBadge tier={row.verification_tier} size={13} />
                     </button>
@@ -250,7 +251,7 @@ export function RightPanel({
                   type="button"
                   className="flex w-full items-center gap-2.5 rounded-xl p-1 -m-1 text-left transition-colors hover:bg-surface-hover"
                   onClick={() => onVisitPost?.(row.author_wallet, row.post_id)}
-                  aria-label={`View post by ${row.name || shortenAddress(row.author_wallet)}`}
+                  aria-label={`View post by ${row.name || <WalletHandle wallet={row.author_wallet} />}`}
                 >
                   <span className="w-5 shrink-0 text-center text-[13px] font-semibold text-ink-muted">
                     {i + 1}.
@@ -270,7 +271,7 @@ export function RightPanel({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
                       <span className="truncate font-mono text-[13px] font-semibold text-ink">
-                        {row.name || shortenAddress(row.author_wallet)}
+                        {row.name || <WalletHandle wallet={row.author_wallet} />}
                       </span>
                       <VerifiedBadge tier={row.verification_tier} size={13} />
                     </span>

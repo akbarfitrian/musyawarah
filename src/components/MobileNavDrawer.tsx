@@ -4,7 +4,7 @@ import { useWallet } from '../contexts/WalletContext'
 import { useProfile } from '../contexts/ProfileContext'
 import { useVerification } from '../hooks/useVerification'
 import { useClickOutside } from '../hooks/useClickOutside'
-import { avatarColor, avatarInitial, shortenAddress } from '../utils/avatar'
+import { avatarColor, avatarInitial } from '../utils/avatar'
 import { VerifiedBadge } from './VerifiedBadge'
 import { ConnectWallet } from './ConnectWallet'
 import { fromBaseUnits } from '../lib/sphereConnect'
@@ -23,7 +23,8 @@ import {
   VerifiedNavIcon,
   XIcon,
 } from './icons'
-import type { View } from './Sidebar'
+import type { View } from './Sidebar'
+import { WalletHandle } from './WalletHandle'
 
 function formatUsd(value: number): string {
   return value.toLocaleString('en-US', {
@@ -202,7 +203,7 @@ export function MobileNavDrawer({
                 <span className="min-w-0">
                   <span className="flex items-center gap-1">
                     <span className="truncate font-display text-[15px] font-bold text-ink">
-                      {profile?.name || shortenAddress(walletAddress)}
+                      {profile?.name || <WalletHandle wallet={walletAddress} />}
                     </span>
                     <VerifiedBadge tier={verificationTier} size={14} />
                   </span>
@@ -210,7 +211,7 @@ export function MobileNavDrawer({
                     <span className="block truncate text-[11px] font-medium text-danger">wallet locked</span>
                   ) : (
                     <span className="flex items-center gap-1 truncate font-mono text-[12px] text-ink-faint">
-                      {profile?.name ? shortenAddress(walletAddress) : null}
+                      {profile?.name ? <WalletHandle wallet={walletAddress} /> : null}
                     </span>
                   )}
                 </span>

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useOrderAuditLog, type AuditLogRow } from '../../hooks/useOrders'
-import { shortenAddress } from '../../utils/avatar'
 import { timeAgo } from '../../utils/time'
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, LockIcon, RefundIcon } from '../icons'
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, LockIcon, RefundIcon } from '../icons'
+import { WalletHandle } from '../WalletHandle'
 
 const PAGE_SIZE = 10
 
@@ -109,7 +109,7 @@ export function AuditLogTab() {
                     <td className="px-3.5 py-2.5">
                       <p className="truncate font-semibold text-ink">{row.listing_title ?? 'Untitled listing'}</p>
                       <p className="truncate text-[11px] text-ink-faint">
-                        {shortenAddress(row.buyer_wallet)} → {shortenAddress(row.provider_wallet)}
+                        <WalletHandle wallet={row.buyer_wallet} /> → <WalletHandle wallet={row.provider_wallet} />
                       </p>
                     </td>
                     <td className="px-3.5 py-2.5">
