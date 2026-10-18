@@ -13,7 +13,6 @@ import { supabase } from '../supabaseClient'
 import { loginWithWallet, logoutWallet, WalletLoginError } from '../lib/walletAuth'
 import {
   DEFAULT_UCT_DECIMALS,
-  formatRecipient,
   getDappDescriptor,
   identityToHandle,
   isInIframe,
@@ -524,7 +523,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     const result = (await client.intent('send', {
-      to: formatRecipient(toWallet),
+      // The SDK's recipient resolver only fast-paths a BARE chainPubkey hex
+      // string (/^0[23][0-9a-f]{64}$/i) — anything else gets routed through
+      // resolvePeer() as if it were a nametag, which fails with "has no
+      // published chain pubkey" for a raw pubkey wrapped in DIRECT://.
+      // formatRecipient() is for the SIWE-style login message only; never
+      // use it for the `to` field of intent('send').
+      to: toWallet,
       amount: amountBase,
       coinId,
     })) as {
