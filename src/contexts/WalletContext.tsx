@@ -563,6 +563,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Tentukan tujuan yang valid (@nametag / DIRECT hasil resolve) SEBELUM
     // minta persetujuan user. Gagal di sini = belum ada uang yang bergerak.
     const recipient = await resolvePayableRecipient(client, toWallet)
+    console.info('[MUSYAWARAH] sendTip tujuan:', recipient.to)
 
     // In popup mode the approval UI lives in that other window — bring it
     // to the front so the user actually notices there's something to sign.

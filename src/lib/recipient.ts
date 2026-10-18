@@ -77,25 +77,31 @@ export async function resolvePayableRecipient(
   const samePeer = (p: PeerInfoLike | null): p is PeerInfoLike =>
     Boolean(p?.chainPubkey) && p!.chainPubkey!.toLowerCase() === target
 
-  // 1) Resolve lewat chainPubkey.
+  // 1) Resolve lewat chainPubkey. Kalau binding-nya membawa nametag, pakai @nametag.
   const byKey = await resolvePeer(client, target)
-  if (samePeer(byKey)) {
-    const tag = normalizeNametag(byKey.nametag)
-    const to = tag ? `@${tag}` : (byKey.directAddress ?? '')
-    if (to) {
-      return { to, matchKeys: [target, tag, byKey.directAddress ?? ''].filter(Boolean) }
-    }
+  const keyPeer = samePeer(byKey) ? byKey : null
+  const keyTag = normalizeNametag(keyPeer?.nametag)
+  if (keyPeer && keyTag) {
+    return { to: `@${keyTag}`, matchKeys: [target, keyTag, keyPeer.directAddress ?? ''].filter(Boolean) }
   }
 
   // 2) Nametag dari env (treasury) / DB, wajib lolos verifikasi ke chainPubkey yang sama.
+  //    Didahulukan di atas alamat DIRECT: tujuan berawalan "@" adalah yang
+  //    terbukti diterima wallet.
   const isTreasury = treasuryWallet !== '' && target === treasuryWallet
   const hint = isTreasury && treasuryNametag ? treasuryNametag : await deps.fetchNametag(target)
   if (hint) {
     const byTag = await resolvePeer(client, `@${hint}`)
     if (samePeer(byTag)) {
-      return { to: `@${hint}`, matchKeys: [target, hint] }
+      return { to: `@${hint}`, matchKeys: [target, hint, keyPeer?.directAddress ?? ''].filter(Boolean) }
     }
     console.warn(`[MUSYAWARAH] @${hint} tidak resolve ke wallet ${target.slice(0, 10)}…, tidak dipakai.`)
+  }
+
+  // 3) Pilihan terakhir: alamat DIRECT hasil resolve (bukan pubkey yang dibungkus).
+  if (keyPeer?.directAddress) {
+    console.warn('[MUSYAWARAH] Penerima tidak punya Unicity ID terverifikasi, pakai alamat DIRECT hasil resolve.')
+    return { to: keyPeer.directAddress, matchKeys: [target, keyPeer.directAddress] }
   }
 
   const short = `${target.slice(0, 6)}…${target.slice(-4)}`
