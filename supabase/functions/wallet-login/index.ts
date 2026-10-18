@@ -164,7 +164,9 @@ Deno.serve(async (req) => {
     sub: crypto.randomUUID(),
     iat: nowSec,
     exp: nowSec + expiresInSec,
-    app_metadata: { wallet_address },
+    // Lowercase: must equal the wallet_address the app stores (always lowercase
+    // chainPubkey), because assert_wallet_owner() compares them as exact text.
+    app_metadata: { wallet_address: wallet_address.toLowerCase() },
   };
 
   const header: Header = { alg: "HS256", typ: "JWT" };

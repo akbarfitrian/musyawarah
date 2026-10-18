@@ -10,6 +10,7 @@ import {
 import { ConnectClient, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect'
 import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser'
 import { supabase } from '../supabaseClient'
+import { loginWithWallet, logoutWallet, WalletLoginError } from '../lib/walletAuth'
 import {
   DEFAULT_UCT_DECIMALS,
   formatRecipient,
@@ -40,6 +41,10 @@ interface WalletContextValue {
   isWalletLocked: boolean
   connectionMode: SphereConnectionMode | null
   error: string | null
+  /** true once the wallet signature challenge succeeded and a JWT is attached to Supabase calls */
+  sessionReady: boolean
+  /** re-run the signature challenge (e.g. after the user dismissed the wallet prompt) */
+  retryLogin: () => Promise<void>
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   sendTip: (toWallet: string, amount: number) => Promise<{ txHash: string; simulated: boolean; verified: boolean }>
@@ -174,6 +179,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([])
   const [totalFiat, setTotalFiat] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
+
+  // Wallet-login (signature challenge) bookkeeping.
+  const loginInFlightRef = useRef<Promise<boolean> | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const identityRef = useRef<SphereIdentity | null>(null)
 
   const clientRef = useRef<ConnectClient | null>(null)
   const transportRef = useRef<{ destroy?: () => void } | null>(null)
@@ -195,6 +206,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       popupRef.current.close()
     }
     popupRef.current = null
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = null
+    loginInFlightRef.current = null
+    identityRef.current = null
+    logoutWallet()
+    setSessionReady(false)
     setWalletAddress(null)
     setConnectionMode(null)
     setIsWalletLocked(false)
@@ -220,16 +237,86 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  /**
+   * Proves wallet ownership to Supabase (sign a one-time message, exchange it
+   * for a JWT). Resolves true on success. Never throws — failures land in
+   * `error` so the UI can surface them. The JWT lives ~1h, so we re-run this
+   * shortly before it expires (the wallet will ask for a signature again).
+   */
+  const establishSession = useCallback(
+    (client: ConnectClient, identity: SphereIdentity): Promise<boolean> => {
+      if (loginInFlightRef.current) return loginInFlightRef.current
+
+      const run = (async () => {
+        try {
+          const res = await loginWithWallet(client, identity.chainPubkey ?? '', () => {
+            // In popup mode the signature prompt lives in the other window.
+            if (popupRef.current && !popupRef.current.closed) popupRef.current.focus()
+          })
+          // Disconnected or switched client while the prompt was open: drop it.
+          if (clientRef.current !== client) {
+            logoutWallet()
+            return false
+          }
+          setSessionReady(true)
+          setError(null)
+
+          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+          const delay = Math.max(10_000, res.expiresAt - Date.now() - 5 * 60_000)
+          refreshTimerRef.current = setTimeout(() => {
+            if (clientRef.current === client && identityRef.current) {
+              void establishSession(client, identityRef.current)
+            }
+          }, delay)
+          return true
+        } catch (err) {
+          logoutWallet()
+          setSessionReady(false)
+          const msg =
+            err instanceof WalletLoginError && err.userRejected
+              ? 'Verifikasi wallet dibatalkan. Tanpa tanda tangan, kamu hanya bisa melihat konten (tidak bisa posting, chat, dll).'
+              : err instanceof Error
+                ? `Verifikasi wallet gagal: ${err.message}`
+                : 'Verifikasi wallet gagal.'
+          console.error('[MUSYAWARAH] wallet-login gagal:', err)
+          setError(msg)
+          return false
+        } finally {
+          loginInFlightRef.current = null
+        }
+      })()
+
+      loginInFlightRef.current = run
+      return run
+    },
+    []
+  )
+
+  const retryLogin = useCallback(async () => {
+    const client = clientRef.current
+    const identity = identityRef.current
+    if (!client || !identity) return
+    await establishSession(client, identity)
+  }, [establishSession])
+
   const attachEvents = useCallback((client: ConnectClient) => {
     const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
       setIsWalletLocked(true)
     })
 
     const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data: unknown) => {
+      const identity = data as SphereIdentity
       setIsWalletLocked(false)
-      setWalletAddress(identityToHandle(data as SphereIdentity))
+      setWalletAddress(identityToHandle(identity))
       uctCoinRef.current = null
       refreshBalance()
+
+      // A different wallet identity must never inherit the previous JWT.
+      identityRef.current = identity
+      logoutWallet()
+      setSessionReady(false)
+      loginInFlightRef.current = null
+      void establishSession(client, identity)
     })
 
     const unsubIncoming = client.on('transfer:incoming', () => refreshBalance())
@@ -241,7 +328,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       unsubIncoming()
       unsubConfirmed()
     }
-  }, [refreshBalance])
+  }, [refreshBalance, establishSession])
 
   useEffect(() => {
     let cancelled = false
@@ -274,11 +361,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         clientRef.current = client
         transportRef.current = transport
         setConnectionMode('iframe')
-        const handle = identityToHandle(result.identity as SphereIdentity)
+        const identity = result.identity as SphereIdentity
+        identityRef.current = identity
+        const handle = identityToHandle(identity)
         setWalletAddress(handle)
         unsubEventsRef.current = attachEvents(client)
         refreshBalance()
-        recordWalletConnectQuest(handle)
+        // Quest RPC needs the verified session, so run it after login.
+        void establishSession(client, identity).then((ok) => {
+          if (ok) recordWalletConnectQuest(handle)
+        })
       } catch {
       } finally {
         if (!cancelled) setIsAutoConnecting(false)
@@ -353,14 +445,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       popupRef.current = popup
       uctCoinRef.current = null
       setConnectionMode(mode)
-      const handle = identityToHandle(result.identity as SphereIdentity)
+      const identity = result.identity as SphereIdentity
+      identityRef.current = identity
+      const handle = identityToHandle(identity)
       setWalletAddress(handle)
       setIsWalletLocked(false)
 
       unsubEventsRef.current?.()
       unsubEventsRef.current = attachEvents(client)
       refreshBalance()
-      recordWalletConnectQuest(handle)
+      // Not awaited: the connect button shouldn't hang on the signature prompt.
+      // Quest RPC needs the verified session, so run it after login.
+      void establishSession(client, identity).then((ok) => {
+        if (ok) recordWalletConnectQuest(handle)
+      })
     } catch (err) {
       console.error('[MUSYAWARAH] Gagal connect ke Sphere wallet:', err)
       const message = err instanceof Error ? err.message : 'Failed to connect wallet. Try again.'
@@ -368,7 +466,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setConnecting(false)
     }
-  }, [attachEvents, refreshBalance, resetLocalState])
+  }, [attachEvents, refreshBalance, resetLocalState, establishSession])
 
   const disconnect = useCallback(async () => {
     try {
@@ -498,6 +596,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isWalletLocked,
         connectionMode,
         error,
+        sessionReady,
+        retryLogin,
         connect,
         disconnect,
         sendTip,
