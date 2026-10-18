@@ -139,60 +139,98 @@ async function syncMyNametag(client: ConnectClient, wallet: string, identity: Sp
   }
 }
 
-async function resolveUctCoin(client: ConnectClient): Promise<ResolvedCoin> {
-  const findUct = (list: unknown): { coinId?: string; decimals?: number } | undefined => {
-    if (!Array.isArray(list)) return undefined
-    return list.find((item) => {
-      const symbol = String(
-        (item as Record<string, unknown>)?.symbol ??
-          (item as Record<string, unknown>)?.ticker ??
-          (item as Record<string, unknown>)?.name ??
-          ''
-      ).toUpperCase()
-      return symbol === 'UCT'
-    }) as { coinId?: string; decimals?: number } | undefined
+/** Rapihin coinId dari wallet: buang prefix 0x, spasi, dan paksa lowercase. */
+function normalizeCoinId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const v = value.trim().replace(/^0x/i, '').toLowerCase()
+  return v || undefined
+}
+
+function pickCoinId(item: Record<string, unknown> | undefined): string | undefined {
+  if (!item) return undefined
+  return normalizeCoinId(item.coinId ?? item.coin_id ?? item.id ?? item.tokenType ?? item.type)
+}
+
+function isUctEntry(item: unknown): boolean {
+  const o = (item ?? {}) as Record<string, unknown>
+  const labels = [o.symbol, o.ticker, o.name]
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim().toLowerCase())
+  return labels.some((v) => v === 'uct' || v === 'unicity' || v === 'unicity token')
+}
+
+function extractList(raw: unknown, key: string): unknown[] {
+  if (Array.isArray(raw)) return raw
+  const inner = (raw as Record<string, unknown> | null | undefined)?.[key]
+  return Array.isArray(inner) ? inner : []
+}
+
+async function resolveUctCoin(client: ConnectClient, knownAssets: WalletAsset[] = []): Promise<ResolvedCoin> {
+  const seen: string[] = []
+  let sawUctWithBadId = false
+
+  const tryList = (list: unknown[], source: string): ResolvedCoin | null => {
+    for (const item of list) {
+      const o = (item ?? {}) as Record<string, unknown>
+      seen.push(String(o.symbol ?? o.ticker ?? o.name ?? '?'))
+      if (!isUctEntry(o)) continue
+      const coinId = pickCoinId(o)
+      if (isValidHexCoinId(coinId)) {
+        return { coinId, decimals: typeof o.decimals === 'number' ? o.decimals : DEFAULT_UCT_DECIMALS }
+      }
+      sawUctWithBadId = true
+      console.warn(`[MUSYAWARAH] ${source} nemu UCT tapi coinId-nya bukan hex valid:`, o)
+    }
+    return null
+  }
+
+  // 0. Aset yang sudah kebaca waktu refresh saldo (nggak perlu query ulang).
+  {
+    const hit = tryList(
+      knownAssets.map((a) => ({ coinId: a.coinId, symbol: a.symbol, name: a.name, decimals: a.decimals })),
+      'cache assets'
+    )
+    if (hit) return hit
   }
 
   try {
-    const assets = await client.query('sphere_getAssets')
-    const list = Array.isArray(assets) ? assets : (assets as { assets?: unknown })?.assets
-    const uct = findUct(list)
-    const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
-    if (isValidHexCoinId(coinId)) {
-      return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
-    }
-    if (typeof coinId === 'string') {
-      console.warn('[MUSYAWARAH] sphere_getAssets nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
-    }
+    const raw = await client.query('sphere_getAssets')
+    console.info('[MUSYAWARAH] sphere_getAssets raw:', raw)
+    const hit = tryList(extractList(raw, 'assets'), 'sphere_getAssets')
+    if (hit) return hit
   } catch (err) {
     console.warn('[MUSYAWARAH] sphere_getAssets gagal, coba sphere_getTokens buat cari UCT.', err)
   }
 
   try {
-    const tokens = await client.query('sphere_getTokens')
-    const list = Array.isArray(tokens) ? tokens : (tokens as { tokens?: unknown })?.tokens
-    const uct = findUct(list)
-    const coinId = uct?.coinId ?? (uct as Record<string, unknown>)?.id
-    if (isValidHexCoinId(coinId)) {
-      return { coinId, decimals: typeof uct?.decimals === 'number' ? uct.decimals : DEFAULT_UCT_DECIMALS }
-    }
-    if (typeof coinId === 'string') {
-      console.warn('[MUSYAWARAH] sphere_getTokens nemu UCT tapi coinId-nya bukan hex valid, diabaikan:', coinId)
-    }
+    const raw = await client.query('sphere_getTokens')
+    console.info('[MUSYAWARAH] sphere_getTokens raw:', raw)
+    const list = extractList(raw, 'tokens')
+    // Token bisa berbentuk { coinId, amount, ... } tanpa symbol; coba cocokkan lewat symbol dulu.
+    const hit = tryList(list, 'sphere_getTokens')
+    if (hit) return hit
   } catch (err) {
     console.warn('[MUSYAWARAH] sphere_getTokens juga gagal cari UCT.', err)
   }
 
-  const override = import.meta.env.VITE_SPHERE_UCT_COIN_ID as string | undefined
+  const overrideRaw = import.meta.env.VITE_SPHERE_UCT_COIN_ID as string | undefined
+  const override = normalizeCoinId(overrideRaw)
   if (isValidHexCoinId(override)) {
     console.warn('[MUSYAWARAH] Nggak nemu coinId UCT dari wallet, pakai VITE_SPHERE_UCT_COIN_ID.')
     return { coinId: override, decimals: DEFAULT_UCT_DECIMALS }
   }
 
+  const seenText = seen.length ? ` Aset yang kebaca dari wallet: ${[...new Set(seen)].join(', ')}.` : ' Wallet nggak ngembaliin aset apa pun.'
+
+  if (overrideRaw) {
+    throw new Error('VITE_SPHERE_UCT_COIN_ID di env bukan hex yang valid (harus genap panjangnya). Cek lagi nilainya.')
+  }
+  if (sawUctWithBadId) {
+    throw new Error('Wallet ngembaliin UCT tapi format coinId-nya nggak dikenali. Buka console (F12) buat lihat detailnya.' + seenText)
+  }
   throw new Error(
-    override
-      ? 'VITE_SPHERE_UCT_COIN_ID di .env.local bukan hex lowercase genap panjangnya. Cek lagi nilainya.'
-      : 'Nggak bisa nemuin coinId token UCT dari wallet. Isi VITE_SPHERE_UCT_COIN_ID di .env.local dengan coinId hex UCT yang bener buat network ini, lalu deploy ulang.'
+    'UCT nggak ada di wallet yang lagi connect, jadi tip belum bisa dikirim. Pastikan wallet punya saldo UCT di network yang sama dengan app ini (testnet), lalu coba lagi.' +
+      seenText
   )
 }
 
@@ -214,6 +252,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connectionMode, setConnectionMode] = useState<SphereConnectionMode | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [assets, setAssets] = useState<WalletAsset[]>([])
+  const assetsRef = useRef<WalletAsset[]>([])
+  useEffect(() => {
+    assetsRef.current = assets
+  }, [assets])
   const [totalFiat, setTotalFiat] = useState<number | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
@@ -523,7 +565,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       try {
         if (!uctCoinRef.current) {
-          uctCoinRef.current = await resolveUctCoin(client)
+          uctCoinRef.current = await resolveUctCoin(client, assetsRef.current)
         }
         const { decimals } = uctCoinRef.current
         const amountBase = toBaseUnits(amount, decimals)
@@ -555,7 +597,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     if (!client || !walletAddress) throw new Error('Wallet not connected')
 
     if (!uctCoinRef.current) {
-      uctCoinRef.current = await resolveUctCoin(client)
+      uctCoinRef.current = await resolveUctCoin(client, assetsRef.current)
     }
     const { coinId, decimals } = uctCoinRef.current
     const amountBase = toBaseUnits(amount, decimals)
